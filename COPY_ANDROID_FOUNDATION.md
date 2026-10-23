@@ -6,7 +6,7 @@
 
 ## Objetivo desta etapa
 
-Converter as decisões aprovadas em uma base revisável e isolada para o cliente Android. A primeira interface navegável foi adicionada em `android/`; as telas não afirmam que IA, persistência, voz ou integrações do aparelho já estejam operacionais.
+Converter as decisões aprovadas em uma base revisável e isolada para o cliente Android. A interface está em `android/`; conversas, histórico e memória já usam SQLite local no código. A compilação e os testes desta revisão ainda aguardam confirmação do CI.
 
 ## Decisões consolidadas
 
@@ -23,7 +23,7 @@ Converter as decisões aprovadas em uma base revisável e isolada para o cliente
 
 ## Mapa da interface nativa
 
-A primeira implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as cinco áreas principais do protótipo. Ela é uma fundação funcional de navegação, não uma reprodução pixel a pixel: a extração visual do Figma Make não foi concluída e esta versão ainda não foi compilada.
+A implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as áreas principais do protótipo. Conversas/mensagens e memória usam banco SQLite privado ao app, ainda sem criptografia própria. Não há comprovação de reprodução pixel a pixel do Figma nem de build verde para a revisão atual.
 
 - **Início:** saudação, ações rápidas, conversas recentes, entrada de texto e atalho de voz.
 - **Conversa:** mensagens, estado de processamento, cancelar, copiar e estados de erro.
@@ -50,10 +50,11 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - Operações externas e destrutivas exigem autorização explícita separada.
 
 ### Persistência local
-- Versão de esquema e migrações testadas.
-- Histórico e memória de longo prazo em domínios separados.
-- Operações explícitas de listar, editar, exportar e apagar.
-- Backup/restauração com validação e sem incluir credenciais em exportações comuns.
+- [Implementado, aguardando CI/emulador] Tabelas SQLite separadas para sessões/mensagens e memórias, com versão de esquema inicial.
+- [Implementado, aguardando CI/emulador] Listagem, atualização e exclusão individual; apagar sessão remove suas mensagens via chave estrangeira.
+- [Pendente] Exportação/importação segura e exclusão integral sob confirmação.
+- [Pendente] Revisão de migrações antes de qualquer alteração futura de esquema.
+- [Pendente] Proteção criptográfica do conteúdo sensível; o banco não é criptografado nesta revisão.
 
 ## Gates de implementação
 
@@ -67,7 +68,7 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - [Parcial] Módulo Android Kotlin/Compose criado dentro de `android/`, com telas e dados de demonstração separados; domínio/integrações ainda precisam de módulos próprios.
 - [Pendente] Contratos de erros, cancelamento, timeout e autenticação local.
 - [Implementado, não validado] Navegação inicial entre Início, Comandos, Controle, Memória, Histórico e uma conversa de demonstração.
-- [Pendente] Build Android e testes de UI/domínio. O workflow de CI foi adicionado para tentar gerar e anexar um APK debug.
+- [Pendente de confirmação] Build Android e testes instrumentados. O workflow tenta compilar, executar testes no emulador e anexar um APK debug, mas a execução consultada ainda estava configurando o Android SDK.
 
 ### Gate C — integração Rust
 - Comparação documentada entre serviço local, JNI e UniFFI.
@@ -76,9 +77,9 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - Não transportar tokens do provedor para a camada de interface.
 
 ### Gate D — memória e segurança
-- SQLite com migração inicial e testes de persistência.
-- Confirmação da memória, exportação e exclusão.
-- Testes negativos para ferramentas sem autorização e para permissões negadas.
+- [Implementado, aguardando execução] SQLite inicial para conversas/mensagens e memórias, com operações de salvar/ler/editar/excluir.
+- [Implementado, aguardando execução] Confirmação antes de salvar/excluir memória; testes instrumentados de persistência adicionados.
+- [Pendente] Exportação/importação, exclusão integral, proteção criptográfica revisada e testes negativos de permissões/ferramentas.
 
 ## Fora do escopo desta etapa
 

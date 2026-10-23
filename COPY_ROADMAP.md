@@ -61,11 +61,12 @@ Copy é o assistente pessoal construído a partir da base de código aberta impo
 
 ## Estado após a primeira entrega Android
 
-- O diretório `android/` contém agora um projeto Kotlin/Jetpack Compose independente da raiz Rust, com cinco áreas de navegação e uma conversa de demonstração.
-- Os comandos, alternâncias de integrações, histórico e memória são dados/estados locais de demonstração, não recursos de produção.
-- Foi adicionado `.github/workflows/copy-android.yml` para tentar compilar `assembleDebug` e anexar o APK como artefato de CI. O resultado precisa ser confirmado na execução do workflow.
-- O build Rust, a integração do runtime, a persistência SQLite, a extração do design Figma e os testes em dispositivo continuam pendentes.
+- O diretório `android/` contém um cliente Kotlin/Jetpack Compose separado do workspace Rust.
+- Conversas/mensagens e histórico foram ligados a SQLite local; a tela Memória também tem armazenamento SQLite para CRUD. Esses recursos estão implementados no código, mas ainda dependem de build verde e testes instrumentados executados.
+- Comandos e controles do dispositivo permanecem demonstrações: não executam ações do aparelho. A IA, microfone e integração com o runtime Rust ainda não estão conectados.
+- O workflow `.github/workflows/copy-android.yml` tenta compilar, executar testes em emulador e anexar um APK debug. A execução mais recente consultada ainda estava na configuração do Android SDK; nenhum APK desta revisão está comprovadamente disponível.
+- Extração fiel do Figma, teste em aparelho físico, integração de IA/Rust e reforço de segurança do armazenamento continuam pendentes.
 
 ## Próxima ação
 
-Validar a compilação Android pelo workflow; corrigir os erros reais indicados pelo compilador; depois extrair/revisar o design do Figma Make e aproximar visualmente a interface nativa. A Fase 0 de auditoria do runtime Rust permanece aberta. Não tratar este roadmap como prova de que as fases foram concluídas.
+Concluir e validar a fatia SQLite no CI/emulador; corrigir falhas de compilação/teste com base nos logs; depois implementar exportação/exclusão integral e revisar a proteção dos dados. A extração fiel do design do Figma Make vem na sequência. A Fase 0 de auditoria do runtime Rust permanece aberta. Não tratar este roadmap como prova de que as fases foram concluídas.

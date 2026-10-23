@@ -16,15 +16,15 @@ Este documento diferencia o que está implementado, o que apenas compila e o que
 - Projeto Kotlin + Jetpack Compose e navegação entre Início, Comandos, Controle, Memória e Histórico.
 - Conversa local explicitamente identificada como demonstração; nenhuma IA está conectada.
 - Catálogo de comandos com busca/filtros; nenhum comando controla o aparelho.
-- Histórico ainda usa registros estáticos de exemplo.
-- A tela de Memória está sendo convertida para SQLite local: salvar, listar, editar e excluir após confirmação, validação de campos e operações de banco fora da thread principal.
-- Testes unitários de validação de memória foram adicionados; a execução do CI desta revisão ainda precisa ser consultada.
+- A tela Início e o Histórico consultam sessões e mensagens reais do SQLite local; o Histórico pesquisa e permite excluir conversas com confirmação.
+- A tela Memória já usa SQLite local para salvar, listar, editar e excluir após confirmação; valida campos e executa operações de banco fora da thread principal.
+- Há testes unitários para validação de entrada e testes instrumentados para persistência de conversas. O novo teste instrumentado de CRUD/persistência da Memória está sendo acrescentado; todos dependem de CI verde para serem considerados aprovados.
 - O manifesto usa `allowBackup=false` e o aplicativo não solicita permissões de microfone, calendário, localização ou acessibilidade nesta etapa.
 
 ## Lacunas que impedem chamar o Copy de pronto
 
 ### P0 — validar a primeira fatia funcional
-1. Confirmar CI verde no commit da implementação SQLite; corrigir qualquer falha real antes de ampliar o escopo.
+1. Confirmar CI verde no commit que contém conversas, histórico e memórias SQLite; a execução mais recente ainda não chegou à compilação.
 2. Testar gravação, leitura, edição e exclusão em um emulador Android; depois testar em aparelho físico.
 3. Testar ciclo de vida: sair da tela, fechar/reabrir o app e reiniciar o processo sem perder registros.
 4. Incluir uma estratégia de migração antes de mudar o esquema SQLite.
@@ -32,9 +32,9 @@ Este documento diferencia o que está implementado, o que apenas compila e o que
 6. Criar uma solução de proteção dos dados sensíveis; o SQLite atual é privado ao app, mas **não possui criptografia própria**. Não descrever como criptografado.
 
 ### P1 — dados de conversa e histórico reais
-1. Modelar conversas e mensagens em armazenamento local, com ordenação e datas reais.
-2. Fazer o Histórico e a tela inicial consultarem sessões reais, sem dados fictícios.
-3. Adicionar exclusão de conversa com confirmação e política clara para anexos.
+1. [Implementado, aguardando validação] Conversas e mensagens locais com ordenação e datas.
+2. [Implementado, aguardando validação] Histórico e conversas recentes consultam sessões reais, sem registros fictícios.
+3. [Implementado, aguardando validação] Exclusão de conversa com confirmação; anexos ainda não estão no escopo.
 4. Testar migrações, múltiplas conversas, textos longos, estado vazio e falhas de armazenamento.
 
 ### P2 — contrato real de IA
