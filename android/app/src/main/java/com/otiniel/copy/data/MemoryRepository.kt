@@ -12,8 +12,8 @@ import android.database.sqlite.SQLiteOpenHelper
  * Keep sensitive data out of logs and exports; add a reviewed encryption design
  * before treating this as encrypted-at-rest storage.
  */
-class MemoryRepository(context: Context) {
-    private val database = MemoryDatabase(context.applicationContext)
+class MemoryRepository(context: Context, databaseName: String = DATABASE_NAME) {
+    private val database = MemoryDatabase(context.applicationContext, databaseName)
 
     fun getAll(): List<MemoryItem> {
         val columns = arrayOf(COLUMN_ID, COLUMN_TITLE, COLUMN_DETAIL)
@@ -76,9 +76,9 @@ class MemoryRepository(context: Context) {
         database.close()
     }
 
-    private class MemoryDatabase(context: Context) : SQLiteOpenHelper(
+    private class MemoryDatabase(context: Context, databaseName: String) : SQLiteOpenHelper(
         context,
-        DATABASE_NAME,
+        databaseName,
         null,
         DATABASE_VERSION,
     ) {
