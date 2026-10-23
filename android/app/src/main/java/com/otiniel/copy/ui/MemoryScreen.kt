@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -56,6 +58,11 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
     var title by remember { mutableStateOf("") }
     var detail by remember { mutableStateOf("") }
     var memoryToDelete by remember { mutableStateOf<MemoryItem?>(null) }
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+        onResult = { uri -> if (uri != null) memoryViewModel.exportTo(uri) },
+    )
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -106,6 +113,26 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
                     Icon(Icons.Rounded.Add, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Adicionar memória")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        enabled = !uiState.isSaving && !uiState.isLoading,
+                        onClick = {
+                            memoryViewModel.dismissFeedback()
+                            exportLauncher.launch("copy-memories-${System.currentTimeMillis()}.json")
+                        },
+                    ) { Text("Exportar JSON") }
+                    TextButton(
+                        enabled = !uiState.isSaving && uiState.memories.isNotEmpty(),
+                        onClick = {
+                            memoryViewModel.dismissFeedback()
+                            confirmDeleteAll = true
+                        },
+                    ) { Text("Excluir todas") }
                 }
             }
         }
@@ -204,7 +231,7 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
 
         item {
             Text(
-                "Exportação, exclusão de todas as memórias e proteção criptográfica do banco ainda precisam ser concluídas antes da versão final.",
+                "O arquivo JSON contém o conteúdo das memórias; salve-o apenas em um local confiável. O banco local ainda não possui criptografia própria.",
                 color = CopyMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -266,6 +293,38 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
                 TextButton(
                     enabled = !uiState.isSaving,
                     onClick = { dialogOpen = false },
+                ) { Text("Cancelar") }
+            },
+            containerColor = CopySurface,
+            titleContentColor = CopyText,
+            textContentColor = CopyText,
+        )
+    }
+
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isSaving) confirmDeleteAll = false },
+            title = { Text("Excluir todas as memórias?") },
+            text = {
+                Text(
+                    "Todas as ${uiState.memories.size} memórias salvas neste dispositivo serão apagadas. Essa ação não pode ser desfeita.",
+                    color = CopyMuted,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isSaving && uiState.memories.isNotEmpty(),
+                    onClick = {
+                        confirmDeleteAll = false
+                        memoryViewModel.deleteAll()
+                    },
+                ) { Text(if (uiState.isSaving) "Excluindo…" else "Excluir todas") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isSaving,
+                    onClick = { confirmDeleteAll = false },
                 ) { Text("Cancelar") }
             },
             containerColor = CopySurface,

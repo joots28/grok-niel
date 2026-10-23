@@ -1,10 +1,12 @@
 package com.otiniel.copy.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.otiniel.copy.data.MemoryInputValidator
 import com.otiniel.copy.data.MemoryItem
+import com.otiniel.copy.data.MemoryExportFormatter
 import com.otiniel.copy.data.MemoryRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +105,76 @@ class MemoryViewModel(application: Application) : AndroidViewModel(application) 
                     it.copy(
                         isSaving = false,
                         error = "Não foi possível excluir a memória. Tente novamente.",
+                        notice = null,
+                    )
+                }
+            }
+        }
+    }
+
+
+    fun deleteAll() {
+        if (_uiState.value.isSaving) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true, error = null, notice = null) }
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val deletedCount = repository.deleteAll()
+                    deletedCount to repository.getAll()
+                }
+                _uiState.update {
+                    it.copy(
+                        memories = result.second,
+                        isSaving = false,
+                        error = null,
+                        notice = if (result.first == 0) {
+                            "Não havia memórias para excluir."
+                        } else {
+                            "${result.first} memória(s) excluída(s) deste dispositivo."
+                        },
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        error = "Não foi possível excluir todas as memórias. Tente novamente.",
+                        notice = null,
+                    )
+                }
+            }
+        }
+    }
+
+    fun exportTo(uri: Uri) {
+        if (_uiState.value.isSaving) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true, error = null, notice = null) }
+            try {
+                val exportedCount = withContext(Dispatchers.IO) {
+                    val memories = repository.getAll()
+                    val json = MemoryExportFormatter.toJson(memories, System.currentTimeMillis())
+                    val output = getApplication<Application>().contentResolver.openOutputStream(uri)
+                        ?: error("Unable to open selected export destination.")
+                    output.bufferedWriter(Charsets.UTF_8).use { writer -> writer.write(json) }
+                    memories.size
+                }
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        error = null,
+                        notice = "Exportação concluída: $exportedCount memória(s) em JSON.",
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        error = "Não foi possível exportar. As memórias locais não foram alteradas.",
                         notice = null,
                     )
                 }

@@ -59,6 +59,17 @@ class MemoryRepositoryInstrumentedTest {
     }
 
     @Test
+    fun deleteAllRemovesEverySavedMemory() {
+        repository.save(null, "Primeira", "Conteúdo 1")
+        repository.save(null, "Segunda", "Conteúdo 2")
+        assertEquals(2, repository.getAll().size)
+
+        assertEquals(2, repository.deleteAll())
+        assertTrue(repository.getAll().isEmpty())
+        assertEquals(0, repository.deleteAll())
+    }
+
+    @Test
     fun databaseRejectsBlankTitleAndContent() {
         var blankTitleRejected = false
         try {

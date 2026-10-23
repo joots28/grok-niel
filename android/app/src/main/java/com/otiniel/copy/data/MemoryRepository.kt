@@ -72,6 +72,11 @@ class MemoryRepository(context: Context, databaseName: String = DATABASE_NAME) {
         check(deleted == 1) { "The memory to delete no longer exists." }
     }
 
+
+    fun deleteAll(): Int {
+        return database.writableDatabase.delete(TABLE_MEMORIES, null, null)
+    }
+
     fun close() {
         database.close()
     }
