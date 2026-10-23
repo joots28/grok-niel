@@ -22,5 +22,6 @@ class MemoryExportFormatterTest {
     fun exportsAnEmptyMemoryList() {
         val json = MemoryExportFormatter.toJson(emptyList(), exportedAt = 1L)
         assertTrue(json.contains("\"memories\": []"))
+        assertTrue(json.endsWith("\"memories\": []\n}\n"))
     }
 }

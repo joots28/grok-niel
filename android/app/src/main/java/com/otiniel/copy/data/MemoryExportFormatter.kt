@@ -9,6 +9,10 @@ object MemoryExportFormatter {
         append("{\n  \"schemaVersion\": 1,\n  \"exportedAt\": ")
         append(exportedAt)
         append(",\n  \"memories\": [")
+        if (memories.isEmpty()) {
+            append("]\n}\n")
+            return@buildString
+        }
         memories.forEachIndexed { index, memory ->
             append(if (index == 0) "\n" else ",\n")
             append("    {\"id\": ")
@@ -19,8 +23,7 @@ object MemoryExportFormatter {
             appendJsonString(memory.detail)
             append('}')
         }
-        if (memories.isNotEmpty()) append('\n')
-        append("  ]\n}\n")
+        append("\n  ]\n}\n")
     }
 
     private fun StringBuilder.appendJsonString(value: String) {
