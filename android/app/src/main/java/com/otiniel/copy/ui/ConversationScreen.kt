@@ -1,5 +1,6 @@
 package com.otiniel.copy.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Send
@@ -20,8 +22,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.otiniel.copy.data.ConversationMessage
 import com.otiniel.copy.ui.theme.CopyBorder
 import com.otiniel.copy.ui.theme.CopyMuted
 import com.otiniel.copy.ui.theme.CopyPrimary
@@ -37,39 +42,38 @@ import com.otiniel.copy.ui.theme.CopySurface
 import com.otiniel.copy.ui.theme.CopySurfaceRaised
 import com.otiniel.copy.ui.theme.CopyText
 
-private data class ChatLine(val isUser: Boolean, val text: String)
-
 @Composable
 fun ConversationScreen(
+    sessionId: Long?,
     initialPrompt: String,
     onBack: () -> Unit,
+    conversationViewModel: ConversationViewModel = viewModel(),
 ) {
-    val lines = remember(initialPrompt) {
-        mutableStateListOf<ChatLine>().apply {
-            if (initialPrompt.isNotBlank()) add(ChatLine(isUser = true, text = initialPrompt))
-        }
-    }
+    val uiState by conversationViewModel.uiState.collectAsState()
     var draft by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(sessionId, initialPrompt) {
+        conversationViewModel.openSession(sessionId, initialPrompt)
+    }
+    LaunchedEffect(uiState.messages.size) {
+        if (uiState.messages.isNotEmpty()) listState.animateScrollToItem(uiState.messages.lastIndex)
+    }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = CopySurface,
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CopyBorder),
+            border = BorderStroke(1.dp, CopyBorder),
         ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 DemoLabel("IA NÃO CONECTADA")
                 Text(
-                    "Este é um teste da interface. O texto não será enviado a um modelo nem a um serviço remoto.",
+                    "As mensagens são salvas neste dispositivo. Nenhuma mensagem é enviada a um modelo remoto nesta etapa.",
                     color = CopyMuted,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
@@ -77,50 +81,50 @@ fun ConversationScreen(
             }
         }
 
-        if (lines.isEmpty()) {
+        if (uiState.isLoading) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = CopySurfaceRaised,
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                Text("Carregando conversa salva…", modifier = Modifier.padding(18.dp), color = CopyMuted, fontSize = 12.sp)
+            }
+        } else if (uiState.messages.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = CopySurfaceRaised,
                 shape = RoundedCornerShape(20.dp),
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text("Por onde começamos?", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Escreva uma mensagem para testar o fluxo visual da conversa.", color = CopyMuted, fontSize = 12.sp)
+                    Text("Escreva uma mensagem. Ela ficará salva no histórico local.", color = CopyMuted, fontSize = 12.sp)
                 }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(lines) { line ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (line.isUser) Arrangement.End else Arrangement.Start,
-                    ) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(0.88f),
-                            color = if (line.isUser) CopyPrimary.copy(alpha = 0.16f) else CopySurface,
-                            shape = RoundedCornerShape(18.dp),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (line.isUser) CopyPrimary.copy(alpha = 0.3f) else CopyBorder,
-                            ),
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(
-                                    if (line.isUser) "VOCÊ" else "ESTADO DO COPY",
-                                    color = if (line.isUser) CopyPrimary else CopyMuted,
-                                    fontSize = 9.sp,
-                                    letterSpacing = 1.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(line.text, color = CopyText, fontSize = 13.sp, lineHeight = 19.sp)
-                            }
-                        }
+                items(uiState.messages, key = { it.id }) { message ->
+                    MessageBubble(message)
+                }
+            }
+        }
+
+        if (uiState.error != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = CopySurfaceRaised,
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(uiState.error.orEmpty(), modifier = Modifier.weight(1f), color = CopyMuted, fontSize = 11.sp)
+                    androidx.compose.material3.TextButton(onClick = conversationViewModel::dismissError) {
+                        Text("Fechar")
                     }
                 }
             }
@@ -133,11 +137,12 @@ fun ConversationScreen(
         ) {
             OutlinedTextField(
                 value = draft,
-                onValueChange = { draft = it },
+                onValueChange = { draft = it.take(12000) },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Mensagem de teste…", fontSize = 12.sp) },
+                placeholder = { Text("Mensagem…", fontSize = 12.sp) },
                 maxLines = 4,
                 shape = RoundedCornerShape(16.dp),
+                enabled = !uiState.isLoading && !uiState.isSending,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CopyPrimary,
                     unfocusedBorderColor = CopyBorder,
@@ -148,23 +153,44 @@ fun ConversationScreen(
             )
             Button(
                 onClick = {
-                    val message = draft.trim()
-                    if (message.isNotEmpty()) {
-                        lines.add(ChatLine(isUser = true, text = message))
-                        lines.add(
-                            ChatLine(
-                                isUser = false,
-                                text = "Mensagem registrada apenas nesta prévia. O núcleo de IA ainda não está conectado.",
-                            ),
-                        )
-                        draft = ""
-                    }
+                    conversationViewModel.sendMessage(draft)
+                    draft = ""
                 },
-                enabled = draft.isNotBlank(),
+                enabled = draft.isNotBlank() && !uiState.isLoading && !uiState.isSending,
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CopyPrimary, contentColor = CopySurface),
             ) {
-                androidx.compose.material3.Icon(Icons.Rounded.Send, contentDescription = "Enviar mensagem")
+                androidx.compose.material3.Icon(Icons.Rounded.Send, contentDescription = "Salvar mensagem")
+            }
+        }
+        if (uiState.isSending) {
+            Text("Salvando mensagem…", color = CopyMuted, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun MessageBubble(message: ConversationMessage) {
+    val isUser = message.role == "user"
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.9f),
+            color = if (isUser) CopyPrimary.copy(alpha = 0.16f) else CopySurface,
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, if (isUser) CopyPrimary.copy(alpha = 0.3f) else CopyBorder),
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    if (isUser) "VOCÊ" else "COPY · RESPOSTA DE DEMONSTRAÇÃO",
+                    color = if (isUser) CopyPrimary else CopyMuted,
+                    fontSize = 9.sp,
+                    letterSpacing = 0.8.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(message.content, color = CopyText, fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
     }
