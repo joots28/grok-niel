@@ -28,6 +28,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,7 +40,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.otiniel.copy.data.demoHistory
 import com.otiniel.copy.ui.theme.CopyBorder
 import com.otiniel.copy.ui.theme.CopyMuted
 import com.otiniel.copy.ui.theme.CopyPrimary
@@ -46,13 +47,18 @@ import com.otiniel.copy.ui.theme.CopySecondary
 import com.otiniel.copy.ui.theme.CopySurface
 import com.otiniel.copy.ui.theme.CopySurfaceRaised
 import com.otiniel.copy.ui.theme.CopyText
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun HomeScreen(
     onOpenConversation: (String) -> Unit,
+    onOpenSavedConversation: (Long) -> Unit,
     onOpenHistory: () -> Unit,
+    conversationViewModel: ConversationViewModel = viewModel(),
 ) {
     var prompt by rememberSaveable { mutableStateOf("") }
+    val conversationState by conversationViewModel.uiState.collectAsState()
+    LaunchedEffect(Unit) { conversationViewModel.refreshSessions() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -173,7 +179,7 @@ fun HomeScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Sessões recentes", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Exemplos de navegação", color = CopyMuted, fontSize = 11.sp)
+                    Text("Conversas salvas neste dispositivo", color = CopyMuted, fontSize = 11.sp)
                 }
                 Button(
                     onClick = onOpenHistory,
@@ -186,26 +192,38 @@ fun HomeScreen(
                 }
             }
         }
-        items(demoHistory.size) { index ->
-            val session = demoHistory[index]
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onOpenHistory,
-                shape = RoundedCornerShape(17.dp),
-                colors = CardDefaults.cardColors(containerColor = CopySurface),
-                border = BorderStroke(1.dp, CopyBorder),
-            ) {
-                Row(
-                    modifier = Modifier.padding(15.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+        if (conversationState.sessions.isEmpty()) {
+            item {
+                AccentCard {
+                    Text("Nenhuma conversa recente", fontWeight = FontWeight.SemiBold)
+                    Text("As sessões que você criar aparecerão aqui.", color = CopyMuted, fontSize = 12.sp)
+                }
+            }
+        } else {
+            items(conversationState.sessions.take(3), key = { it.id }) { session ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onOpenSavedConversation(session.id) },
+                    shape = RoundedCornerShape(17.dp),
+                    colors = CardDefaults.cardColors(containerColor = CopySurface),
+                    border = BorderStroke(1.dp, CopyBorder),
                 ) {
-                    Icon(Icons.Rounded.History, contentDescription = null, tint = CopyPrimary)
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(session.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text(session.detail, color = CopyMuted, fontSize = 11.sp)
+                    Row(
+                        modifier = Modifier.padding(15.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Rounded.History, contentDescription = null, tint = CopyPrimary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(session.title, color = CopyText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                session.preview.ifBlank { "Conversa sem mensagens" },
+                                color = CopyMuted,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                            )
+                        }
                     }
-                    Text(session.time, color = CopyMuted, fontSize = 10.sp)
                 }
             }
         }
