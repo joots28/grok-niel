@@ -1,12 +1,12 @@
 # Copy — fundação Android e contratos de integração
 
-**Status:** proposta inicial, ainda não implementada nem validada em dispositivo.  
+**Status:** scaffold Android Kotlin/Jetpack Compose adicionado na branch de trabalho; compilação e validação em dispositivo ainda pendentes.  
 **Base de trabalho:** `joots28/grok-niel`, branch `copy/foundation-requirements`.  
 **Referência de requisitos:** Mapa Mestre do Copy, versão de planejamento de 22/10/2026; `COPY_AUDIT.md` e `COPY_ROADMAP.md`.
 
 ## Objetivo desta etapa
 
-Transformar as decisões aprovadas em contratos técnicos revisáveis antes de começar a ligar a interface a ferramentas ou a modelos. Não declarar nenhuma função como operacional sem uma implementação e um teste que a comprovem.
+Converter as decisões aprovadas em uma base revisável e isolada para o cliente Android. A primeira interface navegável foi adicionada em `android/`; as telas não afirmam que IA, persistência, voz ou integrações do aparelho já estejam operacionais.
 
 ## Decisões consolidadas
 
@@ -23,7 +23,7 @@ Transformar as decisões aprovadas em contratos técnicos revisáveis antes de c
 
 ## Mapa da interface nativa
 
-A implementação deve manter o Copy reconhecível e reproduzir as telas do protótipo sem exibir simulações como se fossem capacidades reais.
+A primeira implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as cinco áreas principais do protótipo. Ela é uma fundação funcional de navegação, não uma reprodução pixel a pixel: a extração visual do Figma Make não foi concluída e esta versão ainda não foi compilada.
 
 - **Início:** saudação, ações rápidas, conversas recentes, entrada de texto e atalho de voz.
 - **Conversa:** mensagens, estado de processamento, cancelar, copiar e estados de erro.
@@ -64,10 +64,10 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - `COPY_AUDIT.md` informa que build e testes ainda não foram executados; por isso a Fase 0 permanece aberta.
 
 ### Gate B — fundação Android
-- Estrutura de módulos Kotlin que separa interface, domínio, dados e integrações.
-- Contratos de erros, cancelamento, timeout e autenticação local documentados.
-- Primeira tela nativa navegável, sem alegar IA ou controles de dispositivo reais.
-- Build e testes de UI/domínio executados.
+- [Parcial] Módulo Android Kotlin/Compose criado dentro de `android/`, com telas e dados de demonstração separados; domínio/integrações ainda precisam de módulos próprios.
+- [Pendente] Contratos de erros, cancelamento, timeout e autenticação local.
+- [Implementado, não validado] Navegação inicial entre Início, Comandos, Controle, Memória, Histórico e uma conversa de demonstração.
+- [Pendente] Build Android e testes de UI/domínio. O workflow de CI foi adicionado para tentar gerar e anexar um APK debug.
 
 ### Gate C — integração Rust
 - Comparação documentada entre serviço local, JNI e UniFFI.
