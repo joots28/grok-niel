@@ -44,3 +44,19 @@ val demoHistory = listOf(
     HistoryItem("Notas de estudo", "Resumo de um conteúdo", "Há 2 dias"),
     HistoryItem("Ideias para projeto", "Rascunho de ideias", "Há 4 dias"),
 )
+
+data class ConversationSession(
+    val id: Long,
+    val title: String,
+    val preview: String,
+    val updatedAt: Long,
+    val messageCount: Int,
+)
+
+data class ConversationMessage(
+    val id: Long,
+    val sessionId: Long,
+    val role: String,
+    val content: String,
+    val createdAt: Long,
+)
