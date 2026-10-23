@@ -15,7 +15,7 @@ on:
 
 # Keep only the newest validation for a branch/PR; stale emulator jobs waste runner time.
 concurrency:
-  group: copy-android-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: copy-android-${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
