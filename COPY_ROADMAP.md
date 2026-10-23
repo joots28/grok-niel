@@ -62,11 +62,12 @@ Copy é o assistente pessoal construído a partir da base de código aberta impo
 ## Estado após a primeira entrega Android
 
 - O diretório `android/` contém um cliente Kotlin/Jetpack Compose separado do workspace Rust.
-- Conversas/mensagens, histórico e memória usam SQLite local no código. O run #57, no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814`, passou em `assembleDebug`, `testDebugUnitTest` e `connectedDebugAndroidTest`.
-- O workflow gerou e carregou o artefato `copy-android-debug-apk` (run #57). O arquivo APK é uma build de depuração e não um lançamento assinado para produção.
+- Conversas/mensagens, histórico e memória usam SQLite local no código. O run #62, no commit de código `17fdd4650c01aa7a1423477348efd526dfe9a710`, passou em `assembleDebug`, `testDebugUnitTest` e `connectedDebugAndroidTest`.
+- Memórias podem ser exportadas como JSON via seletor de arquivos do Android e todas podem ser excluídas com confirmação. O teste unitário cobre conteúdo vazio e escape de texto; os testes instrumentados também passam.
+- O workflow gerou e carregou o artefato `copy-android-debug-apk` (run #62), disponível até 2026-10-30 21:43 UTC. O APK é uma build de depuração e não um lançamento assinado para produção.
 - Comandos e controles do dispositivo permanecem demonstrações: não executam ações do aparelho. A IA, microfone e integração com o runtime Rust ainda não estão conectados.
 - Extração fiel do Figma, teste em aparelho físico, integração de IA/Rust e reforço criptográfico do armazenamento continuam pendentes.
 
 ## Próxima ação
 
-Próximos passos: (1) testar o APK em aparelho físico; (2) planejar exportação e exclusão integral, além da proteção criptográfica dos bancos; (3) definir o primeiro provedor/estratégia de IA sem embutir chaves no APK; (4) validar a arquitetura de integração com Rust; e (5) retomar a extração fiel do design do Figma Make. A Fase 0 de auditoria do runtime Rust permanece aberta. Não tratar este roadmap como prova de que as fases foram concluídas.
+Próximos passos: (1) testar o APK em aparelho físico; (2) revisar criptografia em repouso e migração segura dos bancos; (3) definir o primeiro provedor/estratégia de IA sem embutir chaves no APK; (4) implementar exportação/exclusão integral de conversas e histórico; (5) validar a arquitetura de integração com Rust; e (6) retomar a extração fiel do design do Figma Make. A Fase 0 de auditoria do runtime Rust permanece aberta. Não tratar este roadmap como prova de que as fases foram concluídas.

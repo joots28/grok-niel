@@ -1,6 +1,6 @@
 # Copy — fundação Android e contratos de integração
 
-**Status:** build debug, testes unitários e testes instrumentados aprovados pelo GitHub Actions no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814` (run #57). Teste em aparelho físico ainda pendente.  
+**Status:** build debug, testes unitários e testes instrumentados aprovados pelo GitHub Actions no commit de código `17fdd4650c01aa7a1423477348efd526dfe9a710` (run #62). Teste em aparelho físico ainda pendente.  
 **Base de trabalho:** `joots28/grok-niel`, branch `copy/foundation-requirements`.  
 **Referência de requisitos:** Mapa Mestre do Copy, versão de planejamento de 22/10/2026; `COPY_AUDIT.md` e `COPY_ROADMAP.md`.
 
@@ -23,7 +23,7 @@ Converter as decisões aprovadas em uma base revisável e isolada para o cliente
 
 ## Mapa da interface nativa
 
-A implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as áreas principais do protótipo. Conversas/mensagens e memória usam bancos SQLite privados ao app, ainda sem criptografia própria. Build debug, testes unitários e testes instrumentados passaram no run #57; a reprodução pixel a pixel do Figma e o teste em aparelho físico seguem sem comprovação.
+A implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as áreas principais do protótipo. Conversas/mensagens e memória usam bancos SQLite privados ao app, ainda sem criptografia própria. Build debug, testes unitários e testes instrumentados passaram no run #62; a reprodução pixel a pixel do Figma e o teste em aparelho físico seguem sem comprovação.
 
 - **Início:** saudação, ações rápidas, conversas recentes, entrada de texto e atalho de voz.
 - **Conversa:** mensagens, estado de processamento, cancelar, copiar e estados de erro.
@@ -52,7 +52,8 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 ### Persistência local
 - [Validado em CI/emulador] Tabelas SQLite separadas para sessões/mensagens e memórias, com versão de esquema inicial; testes instrumentados passaram no run #57.
 - [Validado em CI/emulador] Listagem e exclusão de sessões com remoção de mensagens por chave estrangeira e CRUD de memória testado, inclusive reabertura do banco/repositório.
-- [Pendente] Exportação/importação segura e exclusão integral sob confirmação.
+- [Implementado e validado em CI] Exportação JSON de memórias via seletor de arquivos e exclusão integral de memórias mediante confirmação; o arquivo exportado contém dados em texto claro e deve ser guardado com cuidado.
+- [Pendente] Importação de dados, além de exportação/exclusão integral de conversas e histórico.
 - [Pendente] Revisão de migrações antes de qualquer alteração futura de esquema.
 - [Pendente] Proteção criptográfica do conteúdo sensível; o banco não é criptografado nesta revisão.
 
@@ -68,7 +69,7 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - [Parcial] Módulo Android Kotlin/Compose criado dentro de `android/`, com telas e dados de demonstração separados; domínio/integrações ainda precisam de módulos próprios.
 - [Pendente] Contratos de erros, cancelamento, timeout e autenticação local.
 - [Implementado, não validado] Navegação inicial entre Início, Comandos, Controle, Memória, Histórico e uma conversa de demonstração.
-- [Validado em CI] `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do artefato passaram no run #57. O APK é de depuração; a instalação e execução em aparelho físico seguem pendentes.
+- [Validado em CI] `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do artefato passaram no run #62. O APK é de depuração; a instalação e execução em aparelho físico seguem pendentes.
 
 ### Gate C — integração Rust
 - Comparação documentada entre serviço local, JNI e UniFFI.
@@ -78,8 +79,8 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 
 ### Gate D — memória e segurança
 - [Validado em CI/emulador] SQLite inicial para conversas/mensagens e memórias, com operações de salvar/ler/editar/excluir.
-- [Validado em CI/emulador] Confirmação antes de salvar/excluir memória; testes instrumentados para reabertura do banco e operações CRUD passaram no run #57.
-- [Pendente] Exportação/importação, exclusão integral, proteção criptográfica revisada e testes negativos de permissões/ferramentas.
+- [Validado em CI/emulador] Confirmação antes de salvar/excluir memória; testes instrumentados de reabertura do banco e CRUD, incluindo exclusão integral, passaram no run #62.
+- [Pendente] Importação, exportação/exclusão integral de conversas, proteção criptográfica revisada e testes negativos de permissões/ferramentas.
 
 ## Fora do escopo desta etapa
 

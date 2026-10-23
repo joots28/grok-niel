@@ -8,7 +8,7 @@ Este documento diferencia o que está implementado, o que apenas compila e o que
 
 - A PR #1 segue em rascunho; nada foi mesclado nem publicado em produção.
 - O projeto Android nativo fica em `android/`, separado do workspace Rust original.
-- CI verde no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814` (run #57): `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do APK de depuração passaram. O APK disponível corresponde a este commit de código; este commit documental não altera código Android.
+- CI verde no commit de código `17fdd4650c01aa7a1423477348efd526dfe9a710` (run #62): `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do APK de depuração passaram. O APK atualizado inclui exportação JSON e exclusão integral de memórias. Artefato GitHub Actions disponível até `2026-10-30 21:43 UTC`.
 - Um build de CI ainda não equivale a um teste de instalação, execução, persistência após reiniciar ou uso em um celular real.
 
 ## O que já existe na base Android
@@ -17,23 +17,23 @@ Este documento diferencia o que está implementado, o que apenas compila e o que
 - Conversa local explicitamente identificada como demonstração; nenhuma IA está conectada.
 - Catálogo de comandos com busca/filtros; nenhum comando controla o aparelho.
 - A tela Início e o Histórico consultam sessões e mensagens reais do SQLite local; o Histórico pesquisa e permite excluir conversas com confirmação.
-- A tela Memória já usa SQLite local para salvar, listar, editar e excluir após confirmação; valida campos e executa operações de banco fora da thread principal.
-- Os testes unitários de validação de entrada e os testes instrumentados de conversas e memória passaram no run #57. Os testes instrumentados cobrem recuperação após reabrir o repositório/banco, exclusão em cascata e CRUD de memória; isso não substitui teste de ciclo de vida da UI nem teste físico.
+- A tela Memória usa SQLite local para salvar, listar, editar e excluir itens após confirmação; agora também exporta JSON por seletor de arquivos do Android e oferece exclusão integral após confirmação. Operações de banco/arquivo ocorrem fora da thread principal.
+- Os testes unitários e instrumentados passaram no run #62: validam serialização JSON/escape, exportação vazia, recuperação de conversas após reabrir o banco, exclusão em cascata e CRUD/exclusão total de memória. Isso não substitui teste de ciclo de vida completo da UI nem teste físico.
 - O manifesto usa `allowBackup=false` e o aplicativo não solicita permissões de microfone, calendário, localização ou acessibilidade nesta etapa.
 
 ## Lacunas que impedem chamar o Copy de pronto
 
 ### P0 — persistência local e segurança
-1. [Concluído no CI] Compilação debug, testes unitários e testes instrumentados passaram no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814` (run #57).
-2. [Pendente] Instalar e testar o APK num aparelho físico, incluindo navegação entre telas, retomada e comportamento após encerrar/reabrir o aplicativo.
+1. [Concluído no CI] Compilação debug, testes unitários e instrumentados passaram no commit de código `17fdd4650c01aa7a1423477348efd526dfe9a710` (run #62).
+2. [Pendente] Instalar e testar o APK num aparelho físico, incluindo navegação e retomada após encerrar/reabrir o aplicativo.
 3. [Pendente] Definir e testar migrações antes de qualquer mudança de esquema SQLite.
-4. [Pendente] Implementar exportação e exclusão completa dos dados com confirmação explícita.
+4. [Concluído para memórias] Exportação JSON pelo seletor de arquivos e exclusão total mediante confirmação. [Pendente] Importação e exportação/exclusão integral de conversas.
 5. [Pendente] Revisar proteção criptográfica para dados sensíveis. Os bancos SQLite atuais são privados ao app, mas **não possuem criptografia própria**.
 
 ### P1 — dados de conversa e histórico reais
-1. [Implementado, aguardando validação] Conversas e mensagens locais com ordenação e datas.
-2. [Implementado, aguardando validação] Histórico e conversas recentes consultam sessões reais, sem registros fictícios.
-3. [Implementado, aguardando validação] Exclusão de conversa com confirmação; anexos ainda não estão no escopo.
+1. [Validado em CI] Conversas e mensagens locais com ordenação e datas.
+2. [Validado em CI] Histórico e conversas recentes consultam sessões reais, sem registros fictícios.
+3. [Validado em CI] Exclusão individual de conversa com confirmação; anexos ainda não estão no escopo.
 4. Testar migrações, múltiplas conversas, textos longos, estado vazio e falhas de armazenamento.
 
 ### P2 — contrato real de IA
