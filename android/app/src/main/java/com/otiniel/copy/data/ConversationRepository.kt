@@ -15,6 +15,7 @@ class ConversationRepository(context: Context, databaseName: String = DATABASE_N
     fun createSession(initialPrompt: String = ""): Long {
         val now = System.currentTimeMillis()
         val cleanPrompt = initialPrompt.trim()
+        require(cleanPrompt.length <= MAX_MESSAGE_LENGTH) { "Message is too long." }
         val title = cleanPrompt.lineSequence().firstOrNull().orEmpty()
             .take(MAX_TITLE_LENGTH)
             .ifBlank { DEFAULT_TITLE }
@@ -48,11 +49,19 @@ class ConversationRepository(context: Context, databaseName: String = DATABASE_N
             val messageId = db.insertOrThrow(TABLE_MESSAGES, null, values)
             val sessionValues = ContentValues().apply {
                 put(COLUMN_UPDATED_AT, now)
-                if (role == ROLE_USER) {
-                    put(COLUMN_TITLE, cleanContent.lineSequence().first().take(MAX_TITLE_LENGTH))
-                }
             }
             db.update(TABLE_SESSIONS, sessionValues, "$COLUMN_ID = ?", arrayOf(sessionId.toString()))
+            if (role == ROLE_USER) {
+                val firstMessageTitle = ContentValues().apply {
+                    put(COLUMN_TITLE, cleanContent.lineSequence().first().take(MAX_TITLE_LENGTH))
+                }
+                db.update(
+                    TABLE_SESSIONS,
+                    firstMessageTitle,
+                    "$COLUMN_ID = ? AND $COLUMN_TITLE = ?",
+                    arrayOf(sessionId.toString(), DEFAULT_TITLE),
+                )
+            }
             db.setTransactionSuccessful()
             return ConversationMessage(messageId, sessionId, role, cleanContent, now)
         } finally {
