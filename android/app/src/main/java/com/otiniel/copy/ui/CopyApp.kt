@@ -49,6 +49,7 @@ fun CopyApp() {
     var selectedTabName by rememberSaveable { mutableStateOf(CopyTab.HOME.name) }
     var conversationOpen by rememberSaveable { mutableStateOf(false) }
     var promptToOpen by rememberSaveable { mutableStateOf("") }
+    var activeConversationId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedTab = CopyTab.valueOf(selectedTabName)
 
     Scaffold(
@@ -76,6 +77,7 @@ fun CopyApp() {
         ) {
             if (conversationOpen) {
                 ConversationScreen(
+                    sessionId = activeConversationId,
                     initialPrompt = promptToOpen,
                     onBack = { conversationOpen = false },
                 )
@@ -83,7 +85,13 @@ fun CopyApp() {
                 when (selectedTab) {
                     CopyTab.HOME -> HomeScreen(
                         onOpenConversation = { prompt ->
+                            activeConversationId = null
                             promptToOpen = prompt
+                            conversationOpen = true
+                        },
+                        onOpenSavedConversation = { sessionId ->
+                            activeConversationId = sessionId
+                            promptToOpen = ""
                             conversationOpen = true
                         },
                         onOpenHistory = { selectedTabName = CopyTab.HISTORY.name },
@@ -92,8 +100,9 @@ fun CopyApp() {
                     CopyTab.CONTROL -> ControlScreen()
                     CopyTab.MEMORY -> MemoryScreen()
                     CopyTab.HISTORY -> HistoryScreen(
-                        onOpenConversation = { title ->
-                            promptToOpen = title
+                        onOpenConversation = { sessionId ->
+                            activeConversationId = sessionId
+                            promptToOpen = ""
                             conversationOpen = true
                         },
                     )
