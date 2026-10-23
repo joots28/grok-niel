@@ -8,7 +8,7 @@ Este documento diferencia o que está implementado, o que apenas compila e o que
 
 - A PR #1 segue em rascunho; nada foi mesclado nem publicado em produção.
 - O projeto Android nativo fica em `android/`, separado do workspace Rust original.
-- O CI passou no commit `f4f0ccb` (build debug, teste unitário disponível e upload do APK). A revisão de memória SQLite é posterior a esse commit e precisa do resultado de CI dessa nova revisão.
+- CI verde no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814` (run #57): `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do APK de depuração passaram. O APK disponível corresponde a este commit de código; este commit documental não altera código Android.
 - Um build de CI ainda não equivale a um teste de instalação, execução, persistência após reiniciar ou uso em um celular real.
 
 ## O que já existe na base Android
@@ -18,18 +18,17 @@ Este documento diferencia o que está implementado, o que apenas compila e o que
 - Catálogo de comandos com busca/filtros; nenhum comando controla o aparelho.
 - A tela Início e o Histórico consultam sessões e mensagens reais do SQLite local; o Histórico pesquisa e permite excluir conversas com confirmação.
 - A tela Memória já usa SQLite local para salvar, listar, editar e excluir após confirmação; valida campos e executa operações de banco fora da thread principal.
-- Há testes unitários para validação de entrada e testes instrumentados para persistência de conversas. O novo teste instrumentado de CRUD/persistência da Memória está sendo acrescentado; todos dependem de CI verde para serem considerados aprovados.
+- Os testes unitários de validação de entrada e os testes instrumentados de conversas e memória passaram no run #57. Os testes instrumentados cobrem recuperação após reabrir o repositório/banco, exclusão em cascata e CRUD de memória; isso não substitui teste de ciclo de vida da UI nem teste físico.
 - O manifesto usa `allowBackup=false` e o aplicativo não solicita permissões de microfone, calendário, localização ou acessibilidade nesta etapa.
 
 ## Lacunas que impedem chamar o Copy de pronto
 
-### P0 — validar a primeira fatia funcional
-1. Confirmar CI verde no commit que contém conversas, histórico e memórias SQLite; a execução mais recente ainda não chegou à compilação.
-2. Testar gravação, leitura, edição e exclusão em um emulador Android; depois testar em aparelho físico.
-3. Testar ciclo de vida: sair da tela, fechar/reabrir o app e reiniciar o processo sem perder registros.
-4. Incluir uma estratégia de migração antes de mudar o esquema SQLite.
-5. Decidir e implementar exportação e exclusão completa da memória.
-6. Criar uma solução de proteção dos dados sensíveis; o SQLite atual é privado ao app, mas **não possui criptografia própria**. Não descrever como criptografado.
+### P0 — persistência local e segurança
+1. [Concluído no CI] Compilação debug, testes unitários e testes instrumentados passaram no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814` (run #57).
+2. [Pendente] Instalar e testar o APK num aparelho físico, incluindo navegação entre telas, retomada e comportamento após encerrar/reabrir o aplicativo.
+3. [Pendente] Definir e testar migrações antes de qualquer mudança de esquema SQLite.
+4. [Pendente] Implementar exportação e exclusão completa dos dados com confirmação explícita.
+5. [Pendente] Revisar proteção criptográfica para dados sensíveis. Os bancos SQLite atuais são privados ao app, mas **não possuem criptografia própria**.
 
 ### P1 — dados de conversa e histórico reais
 1. [Implementado, aguardando validação] Conversas e mensagens locais com ordenação e datas.
@@ -77,4 +76,4 @@ Uma etapa não é considerada concluída até haver:
 
 ## Limites atuais
 
-Não há confirmação de teste físico, integração real de IA, reconhecimento/síntese de voz, sincronização em nuvem, controles do sistema Android, histórico persistente ou fidelidade pixel a pixel com o Figma. Esses itens permanecem pendentes mesmo se o próximo APK compilar.
+O histórico/conversas e a memória já estão conectados a SQLite no commit de código validado pelo CI. Ainda faltam teste em aparelho físico, proteção criptográfica do banco, integração real de IA, reconhecimento/síntese de voz, sincronização em nuvem, controles funcionais do Android e comprovação de fidelidade pixel a pixel com o Figma. O APK entregue é de depuração, não um lançamento assinado para produção.

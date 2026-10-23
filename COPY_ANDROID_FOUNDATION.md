@@ -1,12 +1,12 @@
 # Copy — fundação Android e contratos de integração
 
-**Status:** scaffold Android Kotlin/Jetpack Compose adicionado na branch de trabalho; compilação e validação em dispositivo ainda pendentes.  
+**Status:** build debug, testes unitários e testes instrumentados aprovados pelo GitHub Actions no commit de código `47bf8c456d8f8aea8dda484c898fb06f60e33814` (run #57). Teste em aparelho físico ainda pendente.  
 **Base de trabalho:** `joots28/grok-niel`, branch `copy/foundation-requirements`.  
 **Referência de requisitos:** Mapa Mestre do Copy, versão de planejamento de 22/10/2026; `COPY_AUDIT.md` e `COPY_ROADMAP.md`.
 
 ## Objetivo desta etapa
 
-Converter as decisões aprovadas em uma base revisável e isolada para o cliente Android. A interface está em `android/`; conversas, histórico e memória já usam SQLite local no código. A compilação e os testes desta revisão ainda aguardam confirmação do CI.
+Converter as decisões aprovadas em uma base revisável e isolada para o cliente Android. A interface está em `android/`; conversas, histórico e memória usam SQLite local no código. O GitHub Actions passou em `assembleDebug`, testes unitários e instrumentados no commit de código `47bf8c4` (run #57). A validação no CI não substitui teste em aparelho físico.
 
 ## Decisões consolidadas
 
@@ -23,7 +23,7 @@ Converter as decisões aprovadas em uma base revisável e isolada para o cliente
 
 ## Mapa da interface nativa
 
-A implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as áreas principais do protótipo. Conversas/mensagens e memória usam banco SQLite privado ao app, ainda sem criptografia própria. Não há comprovação de reprodução pixel a pixel do Figma nem de build verde para a revisão atual.
+A implementação em `android/app/src/main/java/com/otiniel/copy/` usa Kotlin e Jetpack Compose para organizar as áreas principais do protótipo. Conversas/mensagens e memória usam bancos SQLite privados ao app, ainda sem criptografia própria. Build debug, testes unitários e testes instrumentados passaram no run #57; a reprodução pixel a pixel do Figma e o teste em aparelho físico seguem sem comprovação.
 
 - **Início:** saudação, ações rápidas, conversas recentes, entrada de texto e atalho de voz.
 - **Conversa:** mensagens, estado de processamento, cancelar, copiar e estados de erro.
@@ -50,8 +50,8 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - Operações externas e destrutivas exigem autorização explícita separada.
 
 ### Persistência local
-- [Implementado, aguardando CI/emulador] Tabelas SQLite separadas para sessões/mensagens e memórias, com versão de esquema inicial.
-- [Implementado, aguardando CI/emulador] Listagem, atualização e exclusão individual; apagar sessão remove suas mensagens via chave estrangeira.
+- [Validado em CI/emulador] Tabelas SQLite separadas para sessões/mensagens e memórias, com versão de esquema inicial; testes instrumentados passaram no run #57.
+- [Validado em CI/emulador] Listagem e exclusão de sessões com remoção de mensagens por chave estrangeira e CRUD de memória testado, inclusive reabertura do banco/repositório.
 - [Pendente] Exportação/importação segura e exclusão integral sob confirmação.
 - [Pendente] Revisão de migrações antes de qualquer alteração futura de esquema.
 - [Pendente] Proteção criptográfica do conteúdo sensível; o banco não é criptografado nesta revisão.
@@ -68,7 +68,7 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - [Parcial] Módulo Android Kotlin/Compose criado dentro de `android/`, com telas e dados de demonstração separados; domínio/integrações ainda precisam de módulos próprios.
 - [Pendente] Contratos de erros, cancelamento, timeout e autenticação local.
 - [Implementado, não validado] Navegação inicial entre Início, Comandos, Controle, Memória, Histórico e uma conversa de demonstração.
-- [Pendente de confirmação] Build Android e testes instrumentados. O workflow tenta compilar, executar testes no emulador e anexar um APK debug, mas a execução consultada ainda estava configurando o Android SDK.
+- [Validado em CI] `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do artefato passaram no run #57. O APK é de depuração; a instalação e execução em aparelho físico seguem pendentes.
 
 ### Gate C — integração Rust
 - Comparação documentada entre serviço local, JNI e UniFFI.
@@ -77,13 +77,13 @@ A inspeção do Figma Make confirmou uma interface baseada em React/Vite/Tailwin
 - Não transportar tokens do provedor para a camada de interface.
 
 ### Gate D — memória e segurança
-- [Implementado, aguardando execução] SQLite inicial para conversas/mensagens e memórias, com operações de salvar/ler/editar/excluir.
-- [Implementado, aguardando execução] Confirmação antes de salvar/excluir memória; testes instrumentados de persistência adicionados.
+- [Validado em CI/emulador] SQLite inicial para conversas/mensagens e memórias, com operações de salvar/ler/editar/excluir.
+- [Validado em CI/emulador] Confirmação antes de salvar/excluir memória; testes instrumentados para reabertura do banco e operações CRUD passaram no run #57.
 - [Pendente] Exportação/importação, exclusão integral, proteção criptográfica revisada e testes negativos de permissões/ferramentas.
 
 ## Fora do escopo desta etapa
 
-Não publicar em produção, não alterar `joots28/grok-niel-build`, não remover fluxos da base upstream sem entender seus consumidores, não ativar integrações perigosas por padrão e não afirmar que há APK ou build Android validado até que isso tenha sido realmente gerado e testado.
+Não publicar em produção, não alterar `joots28/grok-niel-build`, não remover fluxos da base upstream sem entender seus consumidores e não ativar integrações perigosas por padrão. O APK debug foi gerado e testado no CI (run #57); isso não equivale a um lançamento assinado nem a teste em dispositivo físico.
 
 ## Critério de aceite deste documento
 
