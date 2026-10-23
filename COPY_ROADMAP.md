@@ -59,6 +59,13 @@ Copy é o assistente pessoal construído a partir da base de código aberta impo
 - Nenhuma publicação em produção sem autorização separada.
 - Licenças e avisos de terceiros preservados.
 
+## Estado após a primeira entrega Android
+
+- O diretório `android/` contém agora um projeto Kotlin/Jetpack Compose independente da raiz Rust, com cinco áreas de navegação e uma conversa de demonstração.
+- Os comandos, alternâncias de integrações, histórico e memória são dados/estados locais de demonstração, não recursos de produção.
+- Foi adicionado `.github/workflows/copy-android.yml` para tentar compilar `assembleDebug` e anexar o APK como artefato de CI. O resultado precisa ser confirmado na execução do workflow.
+- O build Rust, a integração do runtime, a persistência SQLite, a extração do design Figma e os testes em dispositivo continuam pendentes.
+
 ## Próxima ação
 
-Concluir o diagnóstico da configuração e do runtime do agente antes de alterar o caminho de execução principal. Não tratar este roadmap como prova de que as fases foram implementadas.
+Validar a compilação Android pelo workflow; corrigir os erros reais indicados pelo compilador; depois extrair/revisar o design do Figma Make e aproximar visualmente a interface nativa. A Fase 0 de auditoria do runtime Rust permanece aberta. Não tratar este roadmap como prova de que as fases foram concluídas.
