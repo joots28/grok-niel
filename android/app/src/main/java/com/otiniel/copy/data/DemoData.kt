@@ -44,8 +44,3 @@ val demoHistory = listOf(
     HistoryItem("Notas de estudo", "Resumo de um conteúdo", "Há 2 dias"),
     HistoryItem("Ideias para projeto", "Rascunho de ideias", "Há 4 dias"),
 )
-
-val initialMemories = listOf(
-    MemoryItem(1, "Preferência de resposta", "Respostas claras, organizadas e diretas."),
-    MemoryItem(2, "Projetos em andamento", "Manter contexto por projeto e separar decisões de ideias."),
-)
