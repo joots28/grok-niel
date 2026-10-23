@@ -89,25 +89,32 @@ fun ConversationScreen(
             ) {
                 Text("Carregando conversa salva…", modifier = Modifier.padding(18.dp), color = CopyMuted, fontSize = 12.sp)
             }
-        } else if (uiState.messages.isEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = CopySurfaceRaised,
-                shape = RoundedCornerShape(20.dp),
-            ) {
-                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("Por onde começamos?", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Escreva uma mensagem. Ela ficará salva no histórico local.", color = CopyMuted, fontSize = 12.sp)
-                }
-            }
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(uiState.messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+                if (uiState.messages.isEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = CopySurfaceRaised,
+                            shape = RoundedCornerShape(20.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp),
+                            ) {
+                                Text("Por onde começamos?", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Escreva uma mensagem. Ela ficará salva no histórico local.", color = CopyMuted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    items(uiState.messages, key = { it.id }) { message ->
+                        MessageBubble(message)
+                    }
                 }
             }
         }
