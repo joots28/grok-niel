@@ -13,6 +13,11 @@ on:
       - ".github/workflows/copy-android.yml"
   workflow_dispatch:
 
+# Keep only the newest validation for a branch/PR; stale emulator jobs waste runner time.
+concurrency:
+  group: copy-android-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
