@@ -1,5 +1,7 @@
 package com.otiniel.copy.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,10 +35,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +54,10 @@ import com.otiniel.copy.ui.theme.CopySurfaceRaised
 import com.otiniel.copy.ui.theme.CopyText
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun HistoryScreen(
@@ -59,6 +67,37 @@ fun HistoryScreen(
     val uiState by conversationViewModel.uiState.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     var sessionToDelete by remember { mutableStateOf<ConversationSession?>(null) }
+    var confirmDeleteAll by rememberSaveable { mutableStateOf(false) }
+    var isExporting by rememberSaveable { mutableStateOf(false) }
+    var exportFeedback by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                isExporting = true
+                exportFeedback = null
+                try {
+                    val json = conversationViewModel.exportConversationsJson()
+                    withContext(Dispatchers.IO) {
+                        val output = context.contentResolver.openOutputStream(uri, "wt")
+                            ?: error("O destino escolhido não pôde ser aberto.")
+                        output.bufferedWriter(Charsets.UTF_8).use { writer -> writer.write(json) }
+                    }
+                    exportFeedback = "Exportação concluída. O JSON não é criptografado; proteja o arquivo salvo."
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    exportFeedback = "Não foi possível exportar o histórico."
+                } finally {
+                    isExporting = false
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) { conversationViewModel.refreshSessions() }
 
@@ -98,6 +137,42 @@ fun HistoryScreen(
                     cursorColor = CopyPrimary,
                 ),
             )
+        }
+
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(
+                        enabled = !isExporting && !uiState.isDeletingAll,
+                        onClick = {
+                            exportFeedback = null
+                            exportLauncher.launch("copy-conversations-${System.currentTimeMillis()}.json")
+                        },
+                    ) {
+                        Text(if (isExporting) "Exportando…" else "Exportar JSON")
+                    }
+                    TextButton(
+                        enabled = uiState.sessions.isNotEmpty() &&
+                            !uiState.isDeletingAll && !uiState.isSending && !uiState.isLoading,
+                        onClick = { confirmDeleteAll = true },
+                    ) {
+                        Text(if (uiState.isDeletingAll) "Excluindo…" else "Excluir todas")
+                    }
+                }
+                exportFeedback?.let { Text(it, color = CopyMuted, fontSize = 11.sp, lineHeight = 16.sp) }
+                uiState.notice?.let {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(it, color = CopyPrimary, fontSize = 11.sp, lineHeight = 16.sp)
+                        TextButton(onClick = conversationViewModel::dismissError) { Text("Dispensar") }
+                    }
+                }
+            }
         }
 
         if (uiState.error != null) {
@@ -173,7 +248,7 @@ fun HistoryScreen(
         }
         item {
             Text(
-                "As sessões são armazenadas localmente. A IA e a sincronização em nuvem ainda não estão conectadas.",
+                "As conversas ficam neste dispositivo. O arquivo JSON exportado contém texto legível; proteja-o. Recursos online permanecem opcionais.",
                 color = CopyMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
@@ -201,6 +276,37 @@ fun HistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { sessionToDelete = null }) { Text("Cancelar") }
+            },
+            containerColor = CopySurface,
+            titleContentColor = CopyText,
+            textContentColor = CopyText,
+        )
+    }
+
+    if (confirmDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.isDeletingAll) confirmDeleteAll = false },
+            title = { Text("Excluir todo o histórico?") },
+            text = {
+                Text(
+                    "Todas as conversas e mensagens serão removidas deste dispositivo. Esta ação não pode ser desfeita.",
+                    color = CopyMuted,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !uiState.isDeletingAll,
+                    onClick = {
+                        confirmDeleteAll = false
+                        conversationViewModel.deleteAllSessions()
+                    },
+                ) { Text("Excluir tudo") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !uiState.isDeletingAll,
+                    onClick = { confirmDeleteAll = false },
+                ) { Text("Cancelar") }
             },
             containerColor = CopySurface,
             titleContentColor = CopyText,
