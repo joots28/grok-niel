@@ -1,79 +1,43 @@
 # Copy — status real e fila de conclusão
 
-Atualizado em 2026-10-23. Fonte de trabalho: branch `copy/foundation-requirements` em `joots28/grok-niel`.
+Atualizado em 24/10/2026. Repositório: joots28/grok-niel; branch de trabalho: copy/foundation-requirements.
 
-Este documento diferencia o que está implementado, o que apenas compila e o que foi testado em dispositivo. Uma tela ou uma execução de build não é evidência de que uma função do aparelho ou uma integração de IA esteja funcionando.
+Este documento separa implementação em código, validação automática e teste físico. Um build verde não comprova que o modelo local funciona bem no telefone, nem que integrações Android ainda não implementadas funcionam.
 
 ## Estado de entrega
 
-- A PR #1 segue em rascunho; nada foi mesclado nem publicado em produção.
-- O projeto Android nativo fica em `android/`, separado do workspace Rust original.
-- CI verde no commit de código `17fdd4650c01aa7a1423477348efd526dfe9a710` (run #62): `assembleDebug`, `testDebugUnitTest`, `connectedDebugAndroidTest` e upload do APK de depuração passaram. O APK atualizado inclui exportação JSON e exclusão integral de memórias. Artefato GitHub Actions disponível até `2026-10-30 21:43 UTC`.
-- Um build de CI ainda não equivale a um teste de instalação, execução, persistência após reiniciar ou uso em um celular real.
+- A PR #1 continua aberta, em rascunho e não mesclada.
+- Último commit com CI confirmado como verde antes da mudança de histórico: 695a267a, com execução de Actions 40058733181 concluída com sucesso.
+- A nova etapa de exportação/exclusão de conversas está no commit 1d16ec3c. A execução 40089328644 ainda aparecia como pendente na última consulta; portanto, essa etapa não deve ser considerada validada pelo CI até a execução terminar com sucesso.
+- O artefato da execução verde anterior é um APK de depuração, não uma versão assinada de produção. Ele não inclui as alterações feitas depois do commit 695a267a.
+- Nenhum teste em aparelho físico foi realizado nesta sessão. O dispositivo prioritário continua sendo o POCO X5 Pro, 8 GB de RAM e 256 GB.
 
-## O que já existe na base Android
+## Funcionalidades presentes no código
 
-- Projeto Kotlin + Jetpack Compose e navegação entre Início, Comandos, Controle, Memória e Histórico.
-- Conversa local explicitamente identificada como demonstração; nenhuma IA está conectada.
-- Catálogo de comandos com busca/filtros; nenhum comando controla o aparelho.
-- A tela Início e o Histórico consultam sessões e mensagens reais do SQLite local; o Histórico pesquisa e permite excluir conversas com confirmação.
-- A tela Memória usa SQLite local para salvar, listar, editar e excluir itens após confirmação; agora também exporta JSON por seletor de arquivos do Android e oferece exclusão integral após confirmação. Operações de banco/arquivo ocorrem fora da thread principal.
-- Os testes unitários e instrumentados passaram no run #62: validam serialização JSON/escape, exportação vazia, recuperação de conversas após reabrir o banco, exclusão em cascata e CRUD/exclusão total de memória. Isso não substitui teste de ciclo de vida completo da UI nem teste físico.
-- O manifesto usa `allowBackup=false` e o aplicativo não solicita permissões de microfone, calendário, localização ou acessibilidade nesta etapa.
+- Aplicativo nativo em Kotlin + Jetpack Compose, com Início, Conversa, Comandos, Controle, Memória e Histórico.
+- Conversas e mensagens persistidas em SQLite local; a memória fica separada. O histórico pode ser pesquisado e conversas individuais podem ser excluídas com confirmação.
+- Títulos e conteúdos selecionados são cifrados com AES-GCM usando uma chave do Android Keystore. Os bancos SQLite não são criptografados integralmente: IDs, papéis, datas e relações permanecem como metadados.
+- Memórias podem ser adicionadas, listadas, editadas e excluídas; há exportação JSON e exclusão total de memórias.
+- O modelo de IA local é opcional: o usuário obtém o arquivo .litertlm e o importa manualmente. Não há chave de API ou servidor pago obrigatório para essa inferência local. A compatibilidade final, a latência e o consumo de RAM precisam de teste físico.
+- Há entrada de voz por botão usando o reconhecimento local do Android quando disponível e leitura manual de respostas por Text-to-Speech. O reconhecimento local requer Android 12+ e suporte real do serviço no aparelho; leitura em voz alta depende do sintetizador instalado.
+- O commit 1d16ec3c acrescenta exportação JSON do histórico completo usando o seletor de documentos do Android, exclusão total com confirmação, testes unitários do serializador e um teste instrumentado de exclusão em cascata. A validação automática dessa alteração permanece pendente na última consulta.
 
-## Lacunas que impedem chamar o Copy de pronto
+## Ainda não implementado ou não comprovado
 
-### P0 — persistência local e segurança
-1. [Concluído no CI] Compilação debug, testes unitários e instrumentados passaram no commit de código `17fdd4650c01aa7a1423477348efd526dfe9a710` (run #62).
-2. [Pendente] Instalar e testar o APK num aparelho físico, incluindo navegação e retomada após encerrar/reabrir o aplicativo.
-3. [Pendente] Definir e testar migrações antes de qualquer mudança de esquema SQLite.
-4. [Concluído para memórias] Exportação JSON pelo seletor de arquivos e exclusão total mediante confirmação. [Pendente] Importação e exportação/exclusão integral de conversas.
-5. [Pendente] Revisar proteção criptográfica para dados sensíveis. Os bancos SQLite atuais são privados ao app, mas **não possuem criptografia própria**.
+1. Teste no POCO X5 Pro: instalação, retomada após fechar o app, inferência real do modelo, latência, memória e bateria.
+2. Criptografia integral do banco; no momento, somente campos de texto selecionados são cifrados.
+3. Bloqueio do app por PIN/biometria e cofre de privacidade adaptativo completo.
+4. Palavra de ativação contínua e serviço de voz em segundo plano.
+5. Pesquisa na web, verificação de fontes e roteamento para provedores remotos gratuitos opcionais.
+6. Gerenciador real de arquivos, integração de calendário, leitura de notificações, controle de configurações Android e automação de outros apps por acessibilidade.
+7. Sincronização/backup opcional, importação validada de exportações e recuperação completa.
+8. Extração completa da referência Figma e comparação visual tela a tela. A fidelidade pixel a pixel ainda não está comprovada.
+9. Revisão final de acessibilidade, desempenho e compatibilidade em diferentes versões e fabricantes.
 
-### P1 — dados de conversa e histórico reais
-1. [Validado em CI] Conversas e mensagens locais com ordenação e datas.
-2. [Validado em CI] Histórico e conversas recentes consultam sessões reais, sem registros fictícios.
-3. [Validado em CI] Exclusão individual de conversa com confirmação; anexos ainda não estão no escopo.
-4. Testar migrações, múltiplas conversas, textos longos, estado vazio e falhas de armazenamento.
+## Portões de qualidade
 
-### P2 — contrato real de IA
-1. Definir interfaces independentes de provedor, sessão, mensagem, resultado, erro, streaming e cancelamento.
-2. Não enviar chamadas HTTP diretamente das telas Compose.
-3. Tratar timeout, falta de rede, respostas malformadas, limite de uso e cancelamento.
-4. Não embutir chaves de API no APK, no repositório nem nos logs; credenciais precisam de armazenamento protegido e configuração explícita do usuário.
-5. Confirmar qual adaptador será conectado primeiro antes de escolher SDK ou formato proprietário.
-
-### P3 — fronteira do runtime Rust
-1. O repositório original é um agente de programação CLI/TUI, não um SDK Android pronto. A autenticação documentada inclui fluxos do produto upstream e arquivos locais próprios.
-2. Inspecionar dependências e direitos de redistribuição de cada módulo que se pretenda reutilizar.
-3. Comparar um serviço local com protocolo versionado, uma API separada e FFI (JNI/UniFFI) usando critérios de segurança, ciclo de vida, cancelamento, bateria e manutenção.
-4. Provar a opção escolhida com um caso mínimo e testes antes de integrá-la à conversa.
-5. Não reutilizar tokens da CLI no aplicativo nem supor que o login upstream funciona como credencial do Copy.
-
-### P4 — voz e integração do Android
-1. Captura de voz com permissão de microfone solicitada somente quando a pessoa ativa a função.
-2. Definir reconhecimento de fala e síntese de voz, dependências de rede e comportamento offline.
-3. Implementar integrações uma por vez; cada recurso deve declarar permissões, risco, resultado verificável e caminho de falha.
-4. Colocar confirmação para ações sensíveis/destrutivas e manter trilha de auditoria sem conteúdo secreto.
-5. Não expor controles falsos de sistema como se alterassem Wi‑Fi, Bluetooth, volume ou outros parâmetros.
-
-### P5 — design, qualidade e distribuição
-1. Extrair e comparar o protótipo Figma Make de forma fiel; o código/medidas completos ainda não foram extraídos, então a correspondência visual não está comprovada.
-2. Testar acessibilidade, escala de texto, teclado, rolagem, estados de erro e telas pequenas.
-3. Testar a faixa de versões Android suportada, desempenho, bateria, rede instável e retomada após interrupções.
-4. Gerar APK assinado apenas quando os critérios de segurança e teste forem aceitos; guardar segredos de assinatura fora do Git.
-5. Fazer revisão final de licenças e avisos de terceiros.
-
-## Portões de qualidade para cada entrega
-
-Uma etapa não é considerada concluída até haver:
-- diff pequeno e revisado na branch de trabalho;
-- resultado de build e testes registrado para o commit exato;
-- teste de comportamento relevante, não só compilação;
-- interface honesta sobre o que está ou não conectado;
-- nenhum segredo no código ou nos logs;
-- nenhum merge ou deploy sem autorização separada.
-
-## Limites atuais
-
-O histórico/conversas e a memória já estão conectados a SQLite no commit de código validado pelo CI. Ainda faltam teste em aparelho físico, proteção criptográfica do banco, integração real de IA, reconhecimento/síntese de voz, sincronização em nuvem, controles funcionais do Android e comprovação de fidelidade pixel a pixel com o Figma. O APK entregue é de depuração, não um lançamento assinado para produção.
+- Build e testes vinculados ao commit exato; falhas devem ser corrigidas antes de marcar a etapa como concluída.
+- Testes unitários, instrumentados/emulador e físicos devem ser diferenciados.
+- Permissões, erros, limites e estado real das integrações devem estar visíveis na UI.
+- Nenhum segredo no código, APK ou logs.
+- Sem merge, produção ou lançamento estável sem autorização separada.
