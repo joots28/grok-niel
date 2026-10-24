@@ -1,6 +1,8 @@
 package com.otiniel.copy.data
 
+import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase as PlainSQLiteDatabase
 import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,7 +29,7 @@ class MemoryRepositoryInstrumentedTest {
     @After
     fun tearDown() {
         repository.close()
-        context.deleteDatabase(databaseName)
+        EncryptedDatabaseBootstrap.deleteForTesting(context, databaseName, "local:" + databaseName)
     }
 
     @Test
@@ -56,6 +58,49 @@ class MemoryRepositoryInstrumentedTest {
 
         repository.delete(updated.id)
         assertTrue(repository.getAll().isEmpty())
+    }
+
+
+    @Test
+    fun migratesLegacyPlaintextMemoriesAndRemovesSourceOnlyAfterVerification() {
+        val legacyFile = context.getDatabasePath(databaseName)
+        val legacy = PlainSQLiteDatabase.openOrCreateDatabase(legacyFile, null)
+        legacy.execSQL(
+            """
+            CREATE TABLE memories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 120),
+                detail TEXT NOT NULL CHECK(length(trim(detail)) BETWEEN 1 AND 3000),
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        val values = ContentValues().apply {
+            put("id", 4L)
+            put("title", "Memória antiga")
+            put("detail", "Conteúdo preservado")
+            put("created_at", 100L)
+            put("updated_at", 200L)
+        }
+        legacy.insertOrThrow("memories", null, values)
+        legacy.version = 1
+        legacy.close()
+
+        val restored = repository.getAll().single()
+        assertEquals(4L, restored.id)
+        assertEquals("Memória antiga", restored.title)
+        assertEquals("Conteúdo preservado", restored.detail)
+        assertTrue("The plaintext database should be deleted only after migration succeeds.", !legacyFile.exists())
+
+        val encryptedFile = context.getDatabasePath(EncryptedDatabaseBootstrap.encryptedNameFor(databaseName))
+        assertTrue(encryptedFile.exists())
+        val header = ByteArray(16)
+        encryptedFile.inputStream().use { input -> input.read(header) }
+        assertTrue(
+            "Encrypted SQLite must not retain the plaintext SQLite header.",
+            !String(header, Charsets.US_ASCII).startsWith("SQLite format 3"),
+        )
     }
 
     @Test

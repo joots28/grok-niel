@@ -85,11 +85,11 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("Armazenamento local", fontWeight = FontWeight.SemiBold)
-                        Text("SQLite · banco privado do app", color = CopyMuted, fontSize = 11.sp)
+                        Text("SQLCipher · base criptografada local", color = CopyMuted, fontSize = 11.sp)
                     }
                 }
                 Text(
-                    "Somente as memórias que você confirmar em Salvar são armazenadas. Nesta versão, os dados ficam neste aparelho e não são sincronizados com a nuvem. O banco ainda não tem criptografia própria.",
+                    "O banco local usa criptografia SQLCipher com chave protegida pelo Android Keystore. As memórias não são sincronizadas com a nuvem; o arquivo JSON exportado fica em texto claro no destino escolhido.",
                     color = CopyMuted,
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
