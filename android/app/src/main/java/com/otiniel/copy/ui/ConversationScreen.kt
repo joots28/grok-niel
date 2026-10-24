@@ -71,9 +71,15 @@ fun ConversationScreen(
             border = BorderStroke(1.dp, CopyBorder),
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                DemoLabel("IA NÃO CONECTADA")
+                DemoLabel(
+                    if (uiState.isLocalModelInstalled) "IA LOCAL · OFFLINE" else "MODELO LOCAL NÃO INSTALADO",
+                )
                 Text(
-                    "Títulos e mensagens são cifrados com AES-GCM usando uma chave do Android Keystore. Identificadores, datas e relações continuam como metadados SQLite; nenhuma mensagem é enviada a um modelo remoto nesta etapa.",
+                    if (uiState.isLocalModelInstalled) {
+                        "As respostas são geradas no dispositivo com o modelo instalado. Nenhuma mensagem é enviada a uma API remota. Títulos e mensagens são cifrados com AES-GCM; alguns metadados continuam no SQLite."
+                    } else {
+                        "Importe um modelo .litertlm gratuito na Central de controle para ativar respostas offline. Sem ele, o Copy salva mensagens localmente, mas não gera respostas de IA. Nenhuma mensagem é enviada a uma API remota."
+                    },
                     color = CopyMuted,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
