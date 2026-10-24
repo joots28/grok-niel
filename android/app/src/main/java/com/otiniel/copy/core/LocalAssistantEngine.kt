@@ -60,6 +60,7 @@ class LocalAssistantEngine(
 
         val initialMessages = history
             .takeLast(LuoPromptBuilder.MAX_HISTORY_MESSAGES)
+            .dropWhile { it.role == "assistant" }
             .mapNotNull { item ->
                 val bounded = LuoPromptBuilder.boundHistoryMessage(item.content)
                 if (bounded.isBlank()) {
@@ -72,7 +73,6 @@ class LocalAssistantEngine(
                     }
                 }
             }
-            .dropWhile { it.role == "model" }
 
         val config = ConversationConfig(
             systemInstruction = Contents.of(LuoPromptBuilder.systemInstruction(savedMemoryContext)),
