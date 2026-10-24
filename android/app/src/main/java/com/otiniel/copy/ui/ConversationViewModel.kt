@@ -8,6 +8,8 @@ import com.otiniel.copy.core.SavedMemoryContext
 import com.otiniel.copy.core.LuoPromptBuilder
 import com.otiniel.copy.data.LocalModelRepository
 import com.otiniel.copy.data.MemoryRepository
+import com.otiniel.copy.data.ConversationExportFormatter
+import com.otiniel.copy.data.ConversationExportRecord
 import com.otiniel.copy.data.ConversationMessage
 import com.otiniel.copy.data.ConversationRepository
 import com.otiniel.copy.data.ConversationSession
@@ -25,8 +27,10 @@ data class ConversationUiState(
     val messages: List<ConversationMessage> = emptyList(),
     val isLoading: Boolean = false,
     val isSending: Boolean = false,
+    val isDeletingAll: Boolean = false,
     val isLocalModelInstalled: Boolean = false,
     val error: String? = null,
+    val notice: String? = null,
 )
 
 class ConversationViewModel(application: Application) : AndroidViewModel(application) {
@@ -169,6 +173,49 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    suspend fun exportConversationsJson(): String = withContext(Dispatchers.IO) {
+        val records = repository.getSessions().map { session ->
+            ConversationExportRecord(
+                session = session,
+                messages = repository.getMessages(session.id),
+            )
+        }
+        ConversationExportFormatter.toJson(records, System.currentTimeMillis())
+    }
+
+    fun deleteAllSessions() {
+        val current = _uiState.value
+        if (current.isDeletingAll || current.isSending || current.isLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeletingAll = true, error = null, notice = null) }
+            try {
+                withContext(Dispatchers.IO) { repository.deleteAllSessions() }
+                _uiState.update {
+                    it.copy(
+                        sessions = emptyList(),
+                        activeSessionId = null,
+                        messages = emptyList(),
+                        isDeletingAll = false,
+                        error = null,
+                        notice = "Todas as conversas foram excluídas deste dispositivo.",
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                _uiState.update { it.copy(isDeletingAll = false) }
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isDeletingAll = false,
+                        error = "Não foi possível excluir todas as conversas.",
+                        notice = null,
+                    )
+                }
+            }
+        }
+    }
+
     fun deleteSession(sessionId: Long) {
         viewModelScope.launch {
             try {
@@ -189,7 +236,7 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun dismissError() = _uiState.update { it.copy(error = null) }
+    fun dismissError() = _uiState.update { it.copy(error = null, notice = null) }
 
     fun releaseLocalModel() {
         viewModelScope.launch {
