@@ -120,6 +120,8 @@ fun ControlScreen() {
                 }
             }
         }
+        item { LocalModelManagerCard() }
+
         item {
             Text(
                 "Quando uma integração for implementada, ela deverá solicitar a permissão oficial do Android e informar os dados acessados.",
