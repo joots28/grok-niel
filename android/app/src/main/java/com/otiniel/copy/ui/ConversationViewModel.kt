@@ -143,6 +143,7 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
                 }
                 refreshSessions()
             } catch (cancelled: CancellationException) {
+                _uiState.update { it.copy(isSending = false) }
                 throw cancelled
             } catch (_: Exception) {
                 val latestMessages = try {
