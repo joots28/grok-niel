@@ -15,8 +15,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -32,9 +34,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import com.otiniel.copy.data.ConversationMessage
 import com.otiniel.copy.ui.theme.CopyBorder
 import com.otiniel.copy.ui.theme.CopyMuted
@@ -51,10 +56,50 @@ fun ConversationScreen(
     conversationViewModel: ConversationViewModel = viewModel(),
 ) {
     val uiState by conversationViewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    var textToSpeech by remember { mutableStateOf<TextToSpeech?>(null) }
+    var textToSpeechReady by remember { mutableStateOf(false) }
+    var speechOutputNotice by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(context) {
+        val engine = TextToSpeech(context) { status ->
+            textToSpeechReady = status == TextToSpeech.SUCCESS
+            if (status != TextToSpeech.SUCCESS) {
+                speechOutputNotice = "O sintetizador de voz do Android não ficou disponível."
+            }
+        }
+        textToSpeech = engine
+        onDispose {
+            runCatching { engine.stop() }
+            engine.shutdown()
+            textToSpeech = null
+            textToSpeechReady = false
+        }
+    }
+    fun speakReply(text: String) {
+        val engine = textToSpeech
+        if (engine == null || !textToSpeechReady) {
+            speechOutputNotice = "O sintetizador de voz ainda está inicializando. Tente novamente."
+            return
+        }
+        val languageStatus = engine.setLanguage(Locale.forLanguageTag("pt-BR"))
+        if (languageStatus == TextToSpeech.LANG_MISSING_DATA ||
+            languageStatus == TextToSpeech.LANG_NOT_SUPPORTED
+        ) {
+            speechOutputNotice = "Português (Brasil) não está disponível no sintetizador instalado."
+            return
+        }
+        val result = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "luo-response")
+        speechOutputNotice = if (result == TextToSpeech.ERROR) {
+            "Não foi possível iniciar a leitura em voz alta."
+        } else {
+            "Leitura em voz alta solicitada ao sintetizador do Android."
+        }
+    }
     DisposableEffect(conversationViewModel) {
         onDispose { conversationViewModel.releaseLocalModel() }
     }
     var draft by remember { mutableStateOf("") }
+    var isVoiceListening by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(sessionId, initialPrompt) {
@@ -87,6 +132,12 @@ fun ConversationScreen(
                     color = CopyMuted,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
+                )
+                Text(
+                    "A leitura em voz alta é manual. O tratamento do texto e a disponibilidade offline dependem do sintetizador de voz instalado no Android.",
+                    color = CopyMuted,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
                 )
             }
         }
@@ -123,7 +174,12 @@ fun ConversationScreen(
                     }
                 } else {
                     items(uiState.messages, key = { it.id }) { message ->
-                        MessageBubble(message)
+                        MessageBubble(
+                            message = message,
+                            isLocalModelInstalled = uiState.isLocalModelInstalled,
+                            speechEnabled = textToSpeechReady,
+                            onSpeak = ::speakReply,
+                        )
                     }
                 }
             }
@@ -159,7 +215,7 @@ fun ConversationScreen(
                 placeholder = { Text("Mensagem…", fontSize = 12.sp) },
                 maxLines = 4,
                 shape = RoundedCornerShape(16.dp),
-                enabled = !uiState.isLoading && !uiState.isSending,
+                enabled = !uiState.isLoading && !uiState.isSending && !isVoiceListening,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CopyPrimary,
                     unfocusedBorderColor = CopyBorder,
@@ -168,12 +224,20 @@ fun ConversationScreen(
                     cursorColor = CopyPrimary,
                 ),
             )
+            OnDeviceVoiceInput(
+                modifier = Modifier.width(56.dp),
+                enabled = !uiState.isLoading && !uiState.isSending,
+                onRecognized = { spoken ->
+                    draft = listOf(draft.trim(), spoken).filter { it.isNotBlank() }.joinToString(" ")
+                },
+                onListeningChanged = { isVoiceListening = it },
+            )
             Button(
                 onClick = {
                     conversationViewModel.sendMessage(draft)
                     draft = ""
                 },
-                enabled = draft.isNotBlank() && !uiState.isLoading && !uiState.isSending,
+                enabled = draft.isNotBlank() && !uiState.isLoading && !uiState.isSending && !isVoiceListening,
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CopyPrimary, contentColor = CopySurface),
             ) {
@@ -181,13 +245,26 @@ fun ConversationScreen(
             }
         }
         if (uiState.isSending) {
-            Text("Salvando mensagem…", color = CopyMuted, fontSize = 10.sp)
+            Text(
+                if (uiState.isLocalModelInstalled) "Luo está gerando uma resposta no dispositivo…"
+                else "Registrando mensagem localmente…",
+                color = CopyMuted,
+                fontSize = 10.sp,
+            )
+        }
+        speechOutputNotice?.let {
+            Text(it, color = CopyMuted, fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
 }
 
 @Composable
-private fun MessageBubble(message: ConversationMessage) {
+private fun MessageBubble(
+    message: ConversationMessage,
+    isLocalModelInstalled: Boolean,
+    speechEnabled: Boolean,
+    onSpeak: (String) -> Unit,
+) {
     val isUser = message.role == "user"
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -200,13 +277,32 @@ private fun MessageBubble(message: ConversationMessage) {
             border = BorderStroke(1.dp, if (isUser) CopyPrimary.copy(alpha = 0.3f) else CopyBorder),
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(
-                    if (isUser) "VOCÊ" else "COPY · RESPOSTA DE DEMONSTRAÇÃO",
-                    color = if (isUser) CopyPrimary else CopyMuted,
-                    fontSize = 9.sp,
-                    letterSpacing = 0.8.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        when {
+                            isUser -> "VOCÊ"
+                            isLocalModelInstalled -> "LUO · IA LOCAL"
+                            else -> "LUO · STATUS LOCAL"
+                        },
+                        modifier = Modifier.weight(1f),
+                        color = if (isUser) CopyPrimary else CopyMuted,
+                        fontSize = 9.sp,
+                        letterSpacing = 0.8.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (!isUser) {
+                        IconButton(
+                            onClick = { onSpeak(message.content) },
+                            enabled = speechEnabled,
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Rounded.VolumeUp,
+                                contentDescription = "Ler resposta em voz alta",
+                                tint = if (speechEnabled) CopyPrimary else CopyMuted,
+                            )
+                        }
+                    }
+                }
                 Text(message.content, color = CopyText, fontSize = 13.sp, lineHeight = 19.sp)
             }
         }

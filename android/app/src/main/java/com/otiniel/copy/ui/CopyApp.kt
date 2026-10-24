@@ -182,7 +182,7 @@ private fun MainTopBar() {
             ) {
                 Surface(modifier = Modifier.size(6.dp), color = CopyPrimary, shape = CircleShape) {}
                 Text(
-                    "INTERFACE PREVIEW",
+                    "LOCAL-FIRST BUILD",
                     color = CopyPrimary,
                     fontSize = 9.sp,
                     letterSpacing = 1.1.sp,
@@ -206,10 +206,10 @@ private fun ConversationTopBar(onBack: () -> Unit) {
         Spacer(modifier = Modifier.width(5.dp))
         androidx.compose.foundation.layout.Column {
             Text("Conversa", fontSize = 16.sp, color = CopyText)
-            Text("Sessão local de demonstração", fontSize = 11.sp, color = CopyMuted)
+            Text("Conversa salva no dispositivo", fontSize = 11.sp, color = CopyMuted)
         }
         Spacer(modifier = Modifier.weight(1f))
-        DemoLabel("DEMO")
+        DemoLabel("LOCAL")
     }
 }
 
