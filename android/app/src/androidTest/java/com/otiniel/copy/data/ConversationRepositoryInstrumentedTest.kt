@@ -134,6 +134,23 @@ class ConversationRepositoryInstrumentedTest {
     }
 
     @Test
+    fun deleteAllSessionsRemovesEveryConversationAndItsMessages() {
+        val firstSession = repository.createSession("Primeira conversa")
+        repository.addMessage(firstSession, "assistant", "Resposta da primeira conversa")
+        val secondSession = repository.createSession("Segunda conversa")
+        repository.addMessage(secondSession, "assistant", "Resposta da segunda conversa")
+
+        assertEquals(2, repository.getSessions().size)
+        assertEquals(2, repository.getMessages(firstSession).size)
+        assertEquals(2, repository.getMessages(secondSession).size)
+
+        assertEquals(2, repository.deleteAllSessions())
+        assertTrue(repository.getSessions().isEmpty())
+        assertTrue(repository.getMessages(firstSession).isEmpty())
+        assertTrue(repository.getMessages(secondSession).isEmpty())
+    }
+
+    @Test
     fun createsEmptySessionWhenNoInitialPromptIsProvided() {
         val sessionId = repository.createSession()
         val session = repository.getSessions().single()
