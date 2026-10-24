@@ -80,7 +80,7 @@ fun LocalModelManagerCard(modelViewModel: LocalModelViewModel = viewModel()) {
             lineHeight = 18.sp,
         )
         Text(
-            "Modelo sugerido: Qwen3-0.6B (Apache-2.0), arquivo de cerca de 329 MB. Baixar usa sua conexão de internet; depois da importação, a geração de texto ocorre no aparelho. Modelos pequenos têm limitações de qualidade e velocidade.",
+            "Modelo sugerido: Qwen3-0.6B (Apache-2.0), arquivo de " + LocalModelRepository.MODEL_SIZE_LABEL + ". Baixar usa sua conexão de internet; depois da importação, a geração de texto ocorre no aparelho. Modelos pequenos têm limitações de qualidade e velocidade.",
             color = CopyMuted,
             fontSize = 11.sp,
             lineHeight = 17.sp,
@@ -137,7 +137,7 @@ fun LocalModelManagerCard(modelViewModel: LocalModelViewModel = viewModel()) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "O importador valida o formato e copia o arquivo para a área privada do app. Não é necessário conceder acesso geral aos arquivos. Nenhum modelo é baixado automaticamente.",
+                "O importador confere a assinatura inicial e copia o arquivo para a área privada do app; o runtime valida o modelo ao carregá-lo. Não é necessário conceder acesso geral aos arquivos. Nenhum modelo é baixado automaticamente.",
                 color = CopyMuted,
                 fontSize = 10.sp,
                 lineHeight = 15.sp,
