@@ -94,6 +94,12 @@ class LocalAssistantEngine(
         }
     }
 
+    suspend fun unload() = mutex.withLock {
+        engine?.close()
+        engine = null
+        loadedModelKey = null
+    }
+
     override fun close() {
         engine?.close()
         engine = null
