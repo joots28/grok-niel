@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "com.otiniel.copy"
 
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.otiniel.copy"
