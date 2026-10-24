@@ -2,41 +2,24 @@ package com.otiniel.copy.data
 
 import android.content.ContentValues
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase as PlainSQLiteDatabase
-import net.zetetic.database.sqlcipher.SQLiteDatabase as CipherSQLiteDatabase
-import net.zetetic.database.sqlcipher.SQLiteOpenHelper as CipherSQLiteOpenHelper
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteOpenHelper
 
 /**
- * Local-only encrypted conversation storage. It never sends messages to a remote service.
+ * Local-only conversation storage. Title/message content uses AES-GCM.
+ * IDs, roles, timestamps and relations remain ordinary SQLite metadata; this is not whole-file encryption.
  */
-class ConversationRepository(context: Context, databaseName: String = LEGACY_DATABASE_NAME) {
-    private val appContext = context.applicationContext
-    private val databaseId = "local:" + databaseName
-    private val helperDelegate = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        val prepared = EncryptedDatabaseBootstrap.prepare(
-            context = appContext,
-            legacyDatabaseName = databaseName,
-            databaseId = databaseId,
-            schemaVersion = DATABASE_VERSION,
-            createSchema = ::createConversationSchema,
-            migrateLegacy = ::migrateConversationDatabase,
-            validateSchema = ::validateConversationSchema,
-        )
-        ConversationDatabase(appContext, prepared.databaseName, prepared.passphrase).also {
-            it.writableDatabase
-        }
-    }
-    private val helper: ConversationDatabase by helperDelegate
+class ConversationRepository(context: Context, databaseName: String = DATABASE_NAME) {
+    private val helper = ConversationDatabase(context.applicationContext, databaseName)
 
     fun createSession(initialPrompt: String = ""): Long {
-        val now = System.currentTimeMillis()
         val cleanPrompt = initialPrompt.trim()
         require(cleanPrompt.length <= MAX_MESSAGE_LENGTH) { "Message is too long." }
-        val title = cleanPrompt.lineSequence().firstOrNull().orEmpty()
-            .take(MAX_TITLE_LENGTH)
-            .ifBlank { DEFAULT_TITLE }
+        val now = System.currentTimeMillis()
+        val title = cleanPrompt.lineSequence().firstOrNull().orEmpty().take(MAX_TITLE_LENGTH).ifBlank { DEFAULT_TITLE }
         val values = ContentValues().apply {
-            put(COLUMN_TITLE, title)
+            put(COLUMN_TITLE, LocalFieldCipher.encrypt(title, FIELD_TITLE))
             put(COLUMN_CREATED_AT, now)
             put(COLUMN_UPDATED_AT, now)
         }
@@ -59,23 +42,18 @@ class ConversationRepository(context: Context, databaseName: String = LEGACY_DAT
             val values = ContentValues().apply {
                 put(COLUMN_SESSION_ID, sessionId)
                 put(COLUMN_ROLE, role)
-                put(COLUMN_CONTENT, cleanContent)
+                put(COLUMN_CONTENT, LocalFieldCipher.encrypt(cleanContent, FIELD_CONTENT))
                 put(COLUMN_CREATED_AT, now)
             }
             val messageId = db.insertOrThrow(TABLE_MESSAGES, null, values)
-            val sessionValues = ContentValues().apply {
-                put(COLUMN_UPDATED_AT, now)
-            }
-            db.update(TABLE_SESSIONS, sessionValues, "$COLUMN_ID = ?", arrayOf(sessionId.toString()))
-            if (role == ROLE_USER) {
-                val firstMessageTitle = ContentValues().apply {
-                    put(COLUMN_TITLE, cleanContent.lineSequence().first().take(MAX_TITLE_LENGTH))
-                }
+            db.update(TABLE_SESSIONS, ContentValues().apply { put(COLUMN_UPDATED_AT, now) }, "$COLUMN_ID = ?", arrayOf(sessionId.toString()))
+            if (role == ROLE_USER && storedTitle(db, sessionId) == DEFAULT_TITLE) {
+                val title = cleanContent.lineSequence().first().take(MAX_TITLE_LENGTH)
                 db.update(
                     TABLE_SESSIONS,
-                    firstMessageTitle,
-                    "$COLUMN_ID = ? AND $COLUMN_TITLE = ?",
-                    arrayOf(sessionId.toString(), DEFAULT_TITLE),
+                    ContentValues().apply { put(COLUMN_TITLE, LocalFieldCipher.encrypt(title, FIELD_TITLE)) },
+                    "$COLUMN_ID = ?",
+                    arrayOf(sessionId.toString()),
                 )
             }
             db.setTransactionSuccessful()
@@ -105,8 +83,8 @@ class ConversationRepository(context: Context, databaseName: String = LEGACY_DAT
                     add(
                         ConversationSession(
                             id = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)),
-                            title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)),
-                            preview = cursor.getString(cursor.getColumnIndexOrThrow("preview")),
+                            title = LocalFieldCipher.decrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)), FIELD_TITLE),
+                            preview = LocalFieldCipher.decrypt(cursor.getString(cursor.getColumnIndexOrThrow("preview")), FIELD_CONTENT),
                             updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_UPDATED_AT)),
                             messageCount = cursor.getInt(cursor.getColumnIndexOrThrow("message_count")),
                         ),
@@ -116,14 +94,13 @@ class ConversationRepository(context: Context, databaseName: String = LEGACY_DAT
         }
     }
 
-    fun getMessages(sessionId: Long): List<ConversationMessage> {
-        return helper.readableDatabase.query(
+    fun getMessages(sessionId: Long): List<ConversationMessage> =
+        helper.readableDatabase.query(
             TABLE_MESSAGES,
             arrayOf(COLUMN_ID, COLUMN_SESSION_ID, COLUMN_ROLE, COLUMN_CONTENT, COLUMN_CREATED_AT),
             "$COLUMN_SESSION_ID = ?",
             arrayOf(sessionId.toString()),
-            null,
-            null,
+            null, null,
             "$COLUMN_CREATED_AT ASC, $COLUMN_ID ASC",
         ).use { cursor ->
             buildList {
@@ -133,72 +110,117 @@ class ConversationRepository(context: Context, databaseName: String = LEGACY_DAT
                             id = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)),
                             sessionId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_SESSION_ID)),
                             role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE)),
-                            content = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CONTENT)),
+                            content = LocalFieldCipher.decrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CONTENT)), FIELD_CONTENT),
                             createdAt = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)),
                         ),
                     )
                 }
             }
         }
-    }
 
     fun deleteSession(sessionId: Long) {
-        val deleted = helper.writableDatabase.delete(
-            TABLE_SESSIONS,
-            "$COLUMN_ID = ?",
-            arrayOf(sessionId.toString()),
-        )
+        val deleted = helper.writableDatabase.delete(TABLE_SESSIONS, "$COLUMN_ID = ?", arrayOf(sessionId.toString()))
         check(deleted == 1) { "Conversation no longer exists." }
     }
 
-    fun close() {
-        if (helperDelegate.isInitialized()) helper.close()
-    }
+    fun close() = helper.close()
 
-    private fun sessionExists(db: CipherSQLiteDatabase, sessionId: Long): Boolean =
-        db.query(
-            TABLE_SESSIONS,
-            arrayOf(COLUMN_ID),
-            "$COLUMN_ID = ?",
-            arrayOf(sessionId.toString()),
-            null,
-            null,
-            null,
-            "1",
-        ).use { it.moveToFirst() }
-
-    private class ConversationDatabase(
-        context: Context,
-        name: String,
-        passphrase: ByteArray,
-    ) : CipherSQLiteOpenHelper(
-        context,
-        name,
-        passphrase,
-        null,
-        DATABASE_VERSION,
-        0,
-        null,
-        null,
-        false,
-    ) {
-        override fun onConfigure(db: CipherSQLiteDatabase) {
-            super.onConfigure(db)
-            db.setForeignKeyConstraintsEnabled(true)
+    private fun storedTitle(db: SQLiteDatabase, sessionId: Long): String =
+        db.query(TABLE_SESSIONS, arrayOf(COLUMN_TITLE), "$COLUMN_ID = ?", arrayOf(sessionId.toString()),
+            null, null, null, "1").use { cursor ->
+            check(cursor.moveToFirst()) { "Conversation no longer exists." }
+            LocalFieldCipher.decrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)), FIELD_TITLE)
         }
 
-        override fun onCreate(db: CipherSQLiteDatabase) = createConversationSchema(db)
+    private fun sessionExists(db: SQLiteDatabase, sessionId: Long): Boolean =
+        db.query(TABLE_SESSIONS, arrayOf(COLUMN_ID), "$COLUMN_ID = ?", arrayOf(sessionId.toString()),
+            null, null, null, "1").use { it.moveToFirst() }
 
-        override fun onUpgrade(db: CipherSQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            error("No migration path is defined from database version " + oldVersion + " to " + newVersion + ".")
+    private class ConversationDatabase(context: Context, name: String) :
+        SQLiteOpenHelper(context, name, null, DATABASE_VERSION) {
+        private var needsVacuumAfterUpgrade = false
+
+        override fun onConfigure(db: SQLiteDatabase) {
+            super.onConfigure(db)
+            db.setForeignKeyConstraintsEnabled(true)
+            db.execSQL("PRAGMA secure_delete = ON")
+        }
+
+        override fun onCreate(db: SQLiteDatabase) {
+            createConversationTables(db, TABLE_SESSIONS, TABLE_MESSAGES)
+            createConversationIndex(db)
+        }
+
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            if (oldVersion == 1 && newVersion == DATABASE_VERSION) {
+                migrateLegacyConversations(db)
+                needsVacuumAfterUpgrade = true
+            } else {
+                error("No migration path is defined from database version $oldVersion to $newVersion.")
+            }
+        }
+
+        override fun onOpen(db: SQLiteDatabase) {
+            super.onOpen(db)
+            if (needsVacuumAfterUpgrade) {
+                try {
+                    db.execSQL("VACUUM")
+                } catch (_: SQLiteException) {
+                    // Keep verified data accessible if free storage is limited.
+                } finally {
+                    needsVacuumAfterUpgrade = false
+                }
+            }
+        }
+
+        private fun migrateLegacyConversations(db: SQLiteDatabase) {
+            val oldSessions = countRows(db, TABLE_SESSIONS)
+            val oldMessages = countRows(db, TABLE_MESSAGES)
+            createConversationTables(db, TEMP_SESSIONS, TEMP_MESSAGES)
+
+            db.query(TABLE_SESSIONS, arrayOf(COLUMN_ID, COLUMN_TITLE, COLUMN_CREATED_AT, COLUMN_UPDATED_AT),
+                null, null, null, null, "$COLUMN_ID ASC").use { cursor ->
+                while (cursor.moveToNext()) {
+                    val values = ContentValues().apply {
+                        put(COLUMN_ID, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)))
+                        put(COLUMN_TITLE, LocalFieldCipher.encrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)), FIELD_TITLE))
+                        put(COLUMN_CREATED_AT, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)))
+                        put(COLUMN_UPDATED_AT, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_UPDATED_AT)))
+                    }
+                    db.insertOrThrow(TEMP_SESSIONS, null, values)
+                }
+            }
+            db.query(TABLE_MESSAGES, arrayOf(COLUMN_ID, COLUMN_SESSION_ID, COLUMN_ROLE, COLUMN_CONTENT, COLUMN_CREATED_AT),
+                null, null, null, null, "$COLUMN_ID ASC").use { cursor ->
+                while (cursor.moveToNext()) {
+                    val values = ContentValues().apply {
+                        put(COLUMN_ID, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)))
+                        put(COLUMN_SESSION_ID, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_SESSION_ID)))
+                        put(COLUMN_ROLE, cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE)))
+                        put(COLUMN_CONTENT, LocalFieldCipher.encrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CONTENT)), FIELD_CONTENT))
+                        put(COLUMN_CREATED_AT, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)))
+                    }
+                    db.insertOrThrow(TEMP_MESSAGES, null, values)
+                }
+            }
+            check(countRows(db, TEMP_SESSIONS) == oldSessions && countRows(db, TEMP_MESSAGES) == oldMessages) {
+                "Conversation migration verification failed; original tables remain within the upgrade transaction."
+            }
+            db.execSQL("DROP TABLE $TABLE_MESSAGES")
+            db.execSQL("DROP TABLE $TABLE_SESSIONS")
+            db.execSQL("ALTER TABLE $TEMP_SESSIONS RENAME TO $TABLE_SESSIONS")
+            db.execSQL("ALTER TABLE $TEMP_MESSAGES RENAME TO $TABLE_MESSAGES")
+            createConversationIndex(db)
         }
     }
 
     private companion object {
-        const val LEGACY_DATABASE_NAME = "copy-conversations.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_NAME = "copy-conversations.db"
+        const val DATABASE_VERSION = 2
         const val TABLE_SESSIONS = "conversation_sessions"
         const val TABLE_MESSAGES = "conversation_messages"
+        const val TEMP_SESSIONS = "conversation_sessions_secure_v2"
+        const val TEMP_MESSAGES = "conversation_messages_secure_v2"
         const val COLUMN_ID = "id"
         const val COLUMN_SESSION_ID = "session_id"
         const val COLUMN_TITLE = "title"
@@ -211,113 +233,38 @@ class ConversationRepository(context: Context, databaseName: String = LEGACY_DAT
         const val DEFAULT_TITLE = "Nova conversa"
         const val MAX_TITLE_LENGTH = 120
         const val MAX_MESSAGE_LENGTH = 12000
+        const val FIELD_TITLE = "conversation.title"
+        const val FIELD_CONTENT = "conversation.content"
     }
 }
 
-private fun createConversationSchema(db: CipherSQLiteDatabase) {
-    db.execSQL(
-        """
-        CREATE TABLE conversation_sessions (
+private fun createConversationTables(db: SQLiteDatabase, sessionsTable: String, messagesTable: String) {
+    db.execSQL("""
+        CREATE TABLE $sessionsTable (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 120),
+            title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 700),
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )
-        """.trimIndent(),
-    )
-    db.execSQL(
-        """
-        CREATE TABLE conversation_messages (
+    """.trimIndent())
+    db.execSQL("""
+        CREATE TABLE $messagesTable (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id INTEGER NOT NULL,
             role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
-            content TEXT NOT NULL CHECK(length(trim(content)) BETWEEN 1 AND 12000),
+            content TEXT NOT NULL CHECK(length(content) BETWEEN 1 AND 66000),
             created_at INTEGER NOT NULL,
-            FOREIGN KEY(session_id) REFERENCES conversation_sessions(id) ON DELETE CASCADE
+            FOREIGN KEY(session_id) REFERENCES $sessionsTable(id) ON DELETE CASCADE
         )
-        """.trimIndent(),
-    )
-    db.execSQL(
-        "CREATE INDEX index_messages_session_created ON conversation_messages(session_id, created_at, id)",
-    )
+    """.trimIndent())
 }
 
-private fun validateConversationSchema(db: CipherSQLiteDatabase) {
-    listOf("conversation_sessions", "conversation_messages").forEach { table ->
-        val found = db.rawQuery(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-            arrayOf(table),
-        ).use { it.moveToFirst() }
-        check(found) { "The encrypted conversation database is missing an expected table." }
-    }
+private fun createConversationIndex(db: SQLiteDatabase) {
+    db.execSQL("CREATE INDEX index_messages_session_created ON conversation_messages(session_id, created_at, id)")
 }
 
-private fun migrateConversationDatabase(source: PlainSQLiteDatabase, target: CipherSQLiteDatabase) {
-    val expectedSessions = source.rawQuery("SELECT COUNT(*) FROM conversation_sessions", null).use {
-        check(it.moveToFirst())
-        it.getLong(0)
+private fun countRows(db: SQLiteDatabase, tableName: String): Long =
+    db.rawQuery("SELECT COUNT(*) FROM $tableName", null).use { cursor ->
+        check(cursor.moveToFirst())
+        cursor.getLong(0)
     }
-    val expectedMessages = source.rawQuery("SELECT COUNT(*) FROM conversation_messages", null).use {
-        check(it.moveToFirst())
-        it.getLong(0)
-    }
-
-    target.beginTransaction()
-    try {
-        source.query(
-            "conversation_sessions",
-            arrayOf("id", "title", "created_at", "updated_at"),
-            null,
-            null,
-            null,
-            null,
-            "id ASC",
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val values = ContentValues().apply {
-                    put("id", cursor.getLong(cursor.getColumnIndexOrThrow("id")))
-                    put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")))
-                    put("created_at", cursor.getLong(cursor.getColumnIndexOrThrow("created_at")))
-                    put("updated_at", cursor.getLong(cursor.getColumnIndexOrThrow("updated_at")))
-                }
-                target.insertOrThrow("conversation_sessions", null, values)
-            }
-        }
-
-        source.query(
-            "conversation_messages",
-            arrayOf("id", "session_id", "role", "content", "created_at"),
-            null,
-            null,
-            null,
-            null,
-            "id ASC",
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val values = ContentValues().apply {
-                    put("id", cursor.getLong(cursor.getColumnIndexOrThrow("id")))
-                    put("session_id", cursor.getLong(cursor.getColumnIndexOrThrow("session_id")))
-                    put("role", cursor.getString(cursor.getColumnIndexOrThrow("role")))
-                    put("content", cursor.getString(cursor.getColumnIndexOrThrow("content")))
-                    put("created_at", cursor.getLong(cursor.getColumnIndexOrThrow("created_at")))
-                }
-                target.insertOrThrow("conversation_messages", null, values)
-            }
-        }
-        target.setTransactionSuccessful()
-    } finally {
-        target.endTransaction()
-    }
-
-    val copiedSessions = target.rawQuery("SELECT COUNT(*) FROM conversation_sessions", null).use {
-        check(it.moveToFirst())
-        it.getLong(0)
-    }
-    val copiedMessages = target.rawQuery("SELECT COUNT(*) FROM conversation_messages", null).use {
-        check(it.moveToFirst())
-        it.getLong(0)
-    }
-    check(copiedSessions == expectedSessions && copiedMessages == expectedMessages) {
-        "Conversation migration verification failed; the plaintext source was preserved."
-    }
-}

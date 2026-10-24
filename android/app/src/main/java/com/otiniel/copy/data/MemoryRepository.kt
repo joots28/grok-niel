@@ -2,42 +2,22 @@ package com.otiniel.copy.data
 
 import android.content.ContentValues
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase as PlainSQLiteDatabase
-import net.zetetic.database.sqlcipher.SQLiteDatabase as CipherSQLiteDatabase
-import net.zetetic.database.sqlcipher.SQLiteOpenHelper as CipherSQLiteOpenHelper
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteOpenHelper
 
 /**
- * Private, app-local storage for memories explicitly saved by the user.
- * The database is encrypted with SQLCipher and its random passphrase is wrapped by Android Keystore.
+ * App-private memory storage. Title/detail fields are AES-GCM encrypted.
+ * IDs/timestamps remain ordinary SQLite metadata; this is not whole-file encryption.
  */
-class MemoryRepository(context: Context, databaseName: String = LEGACY_DATABASE_NAME) {
-    private val appContext = context.applicationContext
-    private val databaseId = "local:" + databaseName
-    private val helperDelegate = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        val prepared = EncryptedDatabaseBootstrap.prepare(
-            context = appContext,
-            legacyDatabaseName = databaseName,
-            databaseId = databaseId,
-            schemaVersion = DATABASE_VERSION,
-            createSchema = ::createMemorySchema,
-            migrateLegacy = ::migrateMemoryDatabase,
-            validateSchema = ::validateMemorySchema,
-        )
-        MemoryDatabase(appContext, prepared.databaseName, prepared.passphrase).also {
-            it.writableDatabase
-        }
-    }
-    private val database: MemoryDatabase by helperDelegate
+class MemoryRepository(context: Context, databaseName: String = DATABASE_NAME) {
+    private val helper = MemoryDatabase(context.applicationContext, databaseName)
 
-    fun getAll(): List<MemoryItem> {
-        val columns = arrayOf(COLUMN_ID, COLUMN_TITLE, COLUMN_DETAIL)
-        return database.readableDatabase.query(
+    fun getAll(): List<MemoryItem> =
+        helper.readableDatabase.query(
             TABLE_MEMORIES,
-            columns,
-            null,
-            null,
-            null,
-            null,
+            arrayOf(COLUMN_ID, COLUMN_TITLE, COLUMN_DETAIL),
+            null, null, null, null,
             "$COLUMN_UPDATED_AT DESC, $COLUMN_ID DESC",
         ).use { cursor ->
             buildList {
@@ -45,97 +25,141 @@ class MemoryRepository(context: Context, databaseName: String = LEGACY_DATABASE_
                     add(
                         MemoryItem(
                             id = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)),
-                            title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)),
-                            detail = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DETAIL)),
+                            title = LocalFieldCipher.decrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)), FIELD_TITLE),
+                            detail = LocalFieldCipher.decrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DETAIL)), FIELD_DETAIL),
                         ),
                     )
                 }
             }
         }
-    }
 
     fun save(id: Long?, title: String, detail: String) {
+        val cleanTitle = title.trim()
+        val cleanDetail = detail.trim()
+        require(cleanTitle.isNotEmpty()) { "A memory title is required." }
+        require(cleanDetail.isNotEmpty()) { "Memory content is required." }
+        require(cleanTitle.length <= MAX_TITLE_LENGTH) { "Memory title is too long." }
+        require(cleanDetail.length <= MAX_DETAIL_LENGTH) { "Memory content is too long." }
+
         val now = System.currentTimeMillis()
         val values = ContentValues().apply {
-            put(COLUMN_TITLE, title.trim())
-            put(COLUMN_DETAIL, detail.trim())
+            put(COLUMN_TITLE, LocalFieldCipher.encrypt(cleanTitle, FIELD_TITLE))
+            put(COLUMN_DETAIL, LocalFieldCipher.encrypt(cleanDetail, FIELD_DETAIL))
             put(COLUMN_UPDATED_AT, now)
             if (id == null) put(COLUMN_CREATED_AT, now)
         }
-
-        val db = database.writableDatabase
+        val db = helper.writableDatabase
         if (id == null) {
             db.insertOrThrow(TABLE_MEMORIES, null, values)
         } else {
-            val changed = db.update(
-                TABLE_MEMORIES,
-                values,
-                "$COLUMN_ID = ?",
-                arrayOf(id.toString()),
-            )
+            val changed = db.update(TABLE_MEMORIES, values, "$COLUMN_ID = ?", arrayOf(id.toString()))
             check(changed == 1) { "The memory to update no longer exists." }
         }
     }
 
     fun delete(id: Long) {
-        val deleted = database.writableDatabase.delete(
-            TABLE_MEMORIES,
-            "$COLUMN_ID = ?",
-            arrayOf(id.toString()),
+        val deleted = helper.writableDatabase.delete(
+            TABLE_MEMORIES, "$COLUMN_ID = ?", arrayOf(id.toString()),
         )
         check(deleted == 1) { "The memory to delete no longer exists." }
     }
 
-    fun deleteAll(): Int =
-        database.writableDatabase.delete(TABLE_MEMORIES, null, null)
+    fun deleteAll(): Int = helper.writableDatabase.delete(TABLE_MEMORIES, null, null)
 
-    fun close() {
-        if (helperDelegate.isInitialized()) database.close()
-    }
+    fun close() = helper.close()
 
-    private class MemoryDatabase(
-        context: Context,
-        name: String,
-        passphrase: ByteArray,
-    ) : CipherSQLiteOpenHelper(
-        context,
-        name,
-        passphrase,
-        null,
-        DATABASE_VERSION,
-        0,
-        null,
-        null,
-        false,
-    ) {
-        override fun onCreate(db: CipherSQLiteDatabase) = createMemorySchema(db)
+    private class MemoryDatabase(context: Context, name: String) :
+        SQLiteOpenHelper(context, name, null, DATABASE_VERSION) {
+        private var needsVacuumAfterUpgrade = false
 
-        override fun onUpgrade(db: CipherSQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            error("No migration path is defined from database version " + oldVersion + " to " + newVersion + ".")
+        override fun onConfigure(db: SQLiteDatabase) {
+            super.onConfigure(db)
+            db.execSQL("PRAGMA secure_delete = ON")
+        }
+
+        override fun onCreate(db: SQLiteDatabase) {
+            createMemoryTable(db, TABLE_MEMORIES)
+        }
+
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            if (oldVersion == 1 && newVersion == DATABASE_VERSION) {
+                migrateLegacyMemories(db)
+                needsVacuumAfterUpgrade = true
+            } else {
+                error("No migration path is defined from database version $oldVersion to $newVersion.")
+            }
+        }
+
+        override fun onOpen(db: SQLiteDatabase) {
+            super.onOpen(db)
+            if (needsVacuumAfterUpgrade) {
+                try {
+                    db.execSQL("VACUUM")
+                } catch (_: SQLiteException) {
+                    // Keep the migrated values available when free storage is limited.
+                } finally {
+                    needsVacuumAfterUpgrade = false
+                }
+            }
+        }
+
+        private fun migrateLegacyMemories(db: SQLiteDatabase) {
+            val expectedRows = countRows(db, TABLE_MEMORIES)
+            createMemoryTable(db, TEMP_TABLE)
+            db.query(
+                TABLE_MEMORIES,
+                arrayOf(COLUMN_ID, COLUMN_TITLE, COLUMN_DETAIL, COLUMN_CREATED_AT, COLUMN_UPDATED_AT),
+                null, null, null, null, "$COLUMN_ID ASC",
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val values = ContentValues().apply {
+                        put(COLUMN_ID, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)))
+                        put(
+                            COLUMN_TITLE,
+                            LocalFieldCipher.encrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)), FIELD_TITLE),
+                        )
+                        put(
+                            COLUMN_DETAIL,
+                            LocalFieldCipher.encrypt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DETAIL)), FIELD_DETAIL),
+                        )
+                        put(COLUMN_CREATED_AT, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)))
+                        put(COLUMN_UPDATED_AT, cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_UPDATED_AT)))
+                    }
+                    db.insertOrThrow(TEMP_TABLE, null, values)
+                }
+            }
+            check(countRows(db, TEMP_TABLE) == expectedRows) {
+                "Memory migration verification failed; SQLite keeps the original table inside the upgrade transaction."
+            }
+            db.execSQL("DROP TABLE $TABLE_MEMORIES")
+            db.execSQL("ALTER TABLE $TEMP_TABLE RENAME TO $TABLE_MEMORIES")
         }
     }
 
     private companion object {
-        const val LEGACY_DATABASE_NAME = "copy-local.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_NAME = "copy-local.db"
+        const val DATABASE_VERSION = 2
         const val TABLE_MEMORIES = "memories"
+        const val TEMP_TABLE = "memories_secure_v2"
         const val COLUMN_ID = "id"
         const val COLUMN_TITLE = "title"
         const val COLUMN_DETAIL = "detail"
         const val COLUMN_CREATED_AT = "created_at"
         const val COLUMN_UPDATED_AT = "updated_at"
+        const val MAX_TITLE_LENGTH = MemoryInputValidator.MAX_TITLE_LENGTH
+        const val MAX_DETAIL_LENGTH = MemoryInputValidator.MAX_DETAIL_LENGTH
+        const val FIELD_TITLE = "memory.title"
+        const val FIELD_DETAIL = "memory.detail"
     }
 }
 
-private fun createMemorySchema(db: CipherSQLiteDatabase) {
+private fun createMemoryTable(db: SQLiteDatabase, tableName: String) {
     db.execSQL(
         """
-        CREATE TABLE memories (
+        CREATE TABLE $tableName (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL
-                CHECK(length(trim(title)) BETWEEN 1 AND 120),
-            detail TEXT NOT NULL
-                CHECK(length(trim(detail)) BETWEEN 1 AND 3000),
+            title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 700),
+            detail TEXT NOT NULL CHECK(length(detail) BETWEEN 1 AND 17000),
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )
@@ -143,52 +167,8 @@ private fun createMemorySchema(db: CipherSQLiteDatabase) {
     )
 }
 
-private fun validateMemorySchema(db: CipherSQLiteDatabase) {
-    val tableExists = db.rawQuery(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-        arrayOf("memories"),
-    ).use { it.moveToFirst() }
-    check(tableExists) { "The encrypted memory database is missing its expected table." }
-}
-
-private fun migrateMemoryDatabase(source: PlainSQLiteDatabase, target: CipherSQLiteDatabase) {
-    val expectedRows = source.rawQuery("SELECT COUNT(*) FROM memories", null).use {
-        check(it.moveToFirst())
-        it.getLong(0)
+private fun countRows(db: SQLiteDatabase, tableName: String): Long =
+    db.rawQuery("SELECT COUNT(*) FROM $tableName", null).use { cursor ->
+        check(cursor.moveToFirst())
+        cursor.getLong(0)
     }
-
-    target.beginTransaction()
-    try {
-        source.query(
-            "memories",
-            arrayOf("id", "title", "detail", "created_at", "updated_at"),
-            null,
-            null,
-            null,
-            null,
-            "id ASC",
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val values = ContentValues().apply {
-                    put("id", cursor.getLong(cursor.getColumnIndexOrThrow("id")))
-                    put("title", cursor.getString(cursor.getColumnIndexOrThrow("title")))
-                    put("detail", cursor.getString(cursor.getColumnIndexOrThrow("detail")))
-                    put("created_at", cursor.getLong(cursor.getColumnIndexOrThrow("created_at")))
-                    put("updated_at", cursor.getLong(cursor.getColumnIndexOrThrow("updated_at")))
-                }
-                target.insertOrThrow("memories", null, values)
-            }
-        }
-        target.setTransactionSuccessful()
-    } finally {
-        target.endTransaction()
-    }
-
-    val copiedRows = target.rawQuery("SELECT COUNT(*) FROM memories", null).use {
-        check(it.moveToFirst())
-        it.getLong(0)
-    }
-    check(copiedRows == expectedRows) {
-        "Memory migration verification failed; the plaintext source was preserved."
-    }
-}
