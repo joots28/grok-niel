@@ -55,6 +55,22 @@ class MemoryRepositoryInstrumentedTest {
     }
 
     @Test
+    fun findSavedMemoryReturnsOnlyTheRequestedRecord() {
+        repository.save(null, "Primeira", "Conteúdo 1")
+        repository.save(null, "Segunda", "Conteúdo 2")
+        val memories = repository.getAll()
+        val requested = memories.first()
+
+        val found = repository.getById(requested.id)
+        assertEquals(requested.id, found?.id)
+        assertEquals(requested.title, found?.title)
+        assertEquals(requested.detail, found?.detail)
+        assertEquals(null, repository.getById(Long.MAX_VALUE))
+        assertEquals(null, repository.getById(0L))
+        assertEquals(null, repository.getById(-1L))
+    }
+
+    @Test
     fun encryptsNewMemoryFieldsInSqlite() {
         repository.save(null, "Segredo", "Conteúdo privado")
         val id = repository.getAll().single().id
