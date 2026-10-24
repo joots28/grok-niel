@@ -32,8 +32,8 @@ class SavedMemoryContextTest {
         val context = SavedMemoryContext.build(memories)
 
         assertFalse(context.contains("ignorar"))
-        assertTrue(context.contains("Título 8"))
-        assertFalse(context.contains("Título 9"))
+        assertTrue(context.contains("Título 4"))
+        assertFalse(context.contains("Título 5"))
     }
 
     @Test
