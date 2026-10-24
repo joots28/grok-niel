@@ -21,7 +21,7 @@ class LuoPromptBuilderTest {
     fun longUserPromptIsBoundedAndDisclosesTruncation() {
         val prompt = LuoPromptBuilder.boundUserPrompt("a".repeat(5000))
 
-        assertTrue(prompt.length < 3000)
+        assertTrue(prompt.length < 1400)
         assertTrue(prompt.contains("parte do final não foi incluída"))
     }
 
