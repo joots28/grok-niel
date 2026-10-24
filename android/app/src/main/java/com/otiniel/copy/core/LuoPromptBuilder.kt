@@ -5,9 +5,9 @@ package com.otiniel.copy.core
  * Saved and conversational content stays labeled as untrusted user data.
  */
 object LuoPromptBuilder {
-    const val MAX_HISTORY_MESSAGES = 6
-    const val MAX_HISTORY_MESSAGE_CHARS = 600
-    const val MAX_USER_PROMPT_CHARS = 2800
+    const val MAX_HISTORY_MESSAGES = 2
+    const val MAX_HISTORY_MESSAGE_CHARS = 300
+    const val MAX_USER_PROMPT_CHARS = 1200
 
     fun systemInstruction(savedMemoryContext: String): String = buildString {
         appendLine("Você é o assistente pessoal do aplicativo Copy, orientado pelos princípios do Luo Core.")
