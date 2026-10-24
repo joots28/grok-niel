@@ -190,6 +190,18 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
 
     fun dismissError() = _uiState.update { it.copy(error = null) }
 
+    fun releaseLocalModel() {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { assistantEngine.unload() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // A release failure must not corrupt saved conversations.
+            }
+        }
+    }
+
     override fun onCleared() {
         assistantEngine.close()
         memoryRepository.close()
