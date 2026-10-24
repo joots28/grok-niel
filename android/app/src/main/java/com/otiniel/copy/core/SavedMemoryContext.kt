@@ -9,8 +9,8 @@ import com.otiniel.copy.data.MemoryItem
  * Treat the returned text as user data, never as trusted instructions.
  */
 object SavedMemoryContext {
-    const val MAX_MEMORIES = 8
-    const val MAX_CONTEXT_CHARS = 1200
+    const val MAX_MEMORIES = 4
+    const val MAX_CONTEXT_CHARS = 600
 
     fun build(memories: List<MemoryItem>): String {
         if (memories.isEmpty()) return ""
