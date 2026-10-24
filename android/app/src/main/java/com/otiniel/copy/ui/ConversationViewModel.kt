@@ -3,6 +3,11 @@ package com.otiniel.copy.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.otiniel.copy.core.LocalAssistantEngine
+import com.otiniel.copy.core.SavedMemoryContext
+import com.otiniel.copy.core.LuoPromptBuilder
+import com.otiniel.copy.data.LocalModelRepository
+import com.otiniel.copy.data.MemoryRepository
 import com.otiniel.copy.data.ConversationMessage
 import com.otiniel.copy.data.ConversationRepository
 import com.otiniel.copy.data.ConversationSession
@@ -20,11 +25,16 @@ data class ConversationUiState(
     val messages: List<ConversationMessage> = emptyList(),
     val isLoading: Boolean = false,
     val isSending: Boolean = false,
+    val isLocalModelInstalled: Boolean = false,
     val error: String? = null,
 )
 
 class ConversationViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = ConversationRepository(application.applicationContext)
+    private val appContext = application.applicationContext
+    private val repository = ConversationRepository(appContext)
+    private val memoryRepository = MemoryRepository(appContext)
+    private val modelRepository = LocalModelRepository(appContext)
+    private val assistantEngine = LocalAssistantEngine(appContext, modelRepository)
     private val _uiState = MutableStateFlow(ConversationUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -42,6 +52,7 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun openSession(sessionId: Long?, initialPrompt: String) {
+        _uiState.update { it.copy(isLocalModelInstalled = modelRepository.status().installed) }
         val current = _uiState.value
         if (sessionId != null && current.activeSessionId == sessionId && !current.isLoading) return
         if (sessionId == null && current.activeSessionId != null && !current.isLoading) {
@@ -60,7 +71,7 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
             }
             try {
                 val result = withContext(Dispatchers.IO) {
-                    val activeId = sessionId ?: repository.createSession(initialPrompt)
+                    val activeId = sessionId ?: repository.createSession()
                     activeId to repository.getMessages(activeId)
                 }
                 _uiState.update {
@@ -72,6 +83,9 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
                     )
                 }
                 refreshSessions()
+                if (sessionId == null && initialPrompt.isNotBlank()) {
+                    sendMessage(initialPrompt)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -102,26 +116,54 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             _uiState.update { it.copy(isSending = true, error = null) }
             try {
-                val messages = withContext(Dispatchers.IO) {
+                val result = withContext(Dispatchers.IO) {
                     repository.addMessage(activeId, ROLE_USER, clean)
-                    repository.addMessage(
-                        activeId,
-                        ROLE_ASSISTANT,
-                        "Mensagem salva localmente. A IA ainda não está conectada, então nenhuma resposta de modelo foi gerada.",
-                    )
-                    repository.getMessages(activeId)
+                    val priorMessages = repository.getMessages(activeId).dropLast(1)
+                    val modelStatus = modelRepository.status()
+                    val reply = if (!modelStatus.installed) {
+                        "A IA local ainda não está ativada. Abra a Central de controle, baixe o modelo gratuito e importe o arquivo .litertlm. Nenhuma mensagem foi enviada a uma API remota."
+                    } else {
+                        val savedContext = SavedMemoryContext.build(memoryRepository.getAll())
+                        assistantEngine.generate(
+                            prompt = clean,
+                            savedMemoryContext = savedContext,
+                            history = priorMessages,
+                        )
+                    }
+                    repository.addMessage(activeId, ROLE_ASSISTANT, reply)
+                    repository.getMessages(activeId) to modelStatus.installed
                 }
-                _uiState.update { it.copy(messages = messages, isSending = false, error = null) }
+                _uiState.update {
+                    it.copy(
+                        messages = result.first,
+                        isLocalModelInstalled = result.second,
+                        isSending = false,
+                        error = null,
+                    )
+                }
                 refreshSessions()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
+                val latestMessages = try {
+                    withContext(Dispatchers.IO) { repository.getMessages(activeId) }
+                } catch (_: Exception) {
+                    _uiState.value.messages
+                }
+                val modelInstalled = try {
+                    withContext(Dispatchers.IO) { modelRepository.status().installed }
+                } catch (_: Exception) {
+                    false
+                }
                 _uiState.update {
                     it.copy(
+                        messages = latestMessages,
+                        isLocalModelInstalled = modelInstalled,
                         isSending = false,
-                        error = "Não foi possível salvar a mensagem. Tente novamente.",
+                        error = "O modelo local não conseguiu gerar a resposta. Verifique o arquivo do modelo e tente novamente.",
                     )
                 }
+                refreshSessions()
             }
         }
     }
@@ -149,6 +191,8 @@ class ConversationViewModel(application: Application) : AndroidViewModel(applica
     fun dismissError() = _uiState.update { it.copy(error = null) }
 
     override fun onCleared() {
+        assistantEngine.close()
+        memoryRepository.close()
         repository.close()
         super.onCleared()
     }
