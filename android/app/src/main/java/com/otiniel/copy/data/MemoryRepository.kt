@@ -33,6 +33,35 @@ class MemoryRepository(context: Context, databaseName: String = DATABASE_NAME) {
             }
         }
 
+    /** Returns one saved memory by ID, or null when it does not exist. */
+    fun getById(id: Long): MemoryItem? {
+        if (id <= 0L) return null
+        return helper.readableDatabase.query(
+            TABLE_MEMORIES,
+            arrayOf(COLUMN_ID, COLUMN_TITLE, COLUMN_DETAIL),
+            "$COLUMN_ID = ?",
+            arrayOf(id.toString()),
+            null, null, null,
+            "1",
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                null
+            } else {
+                MemoryItem(
+                    id = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)),
+                    title = LocalFieldCipher.decrypt(
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE)),
+                        FIELD_TITLE,
+                    ),
+                    detail = LocalFieldCipher.decrypt(
+                        cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DETAIL)),
+                        FIELD_DETAIL,
+                    ),
+                )
+            }
+        }
+    }
+
     fun save(id: Long?, title: String, detail: String) {
         val cleanTitle = title.trim()
         val cleanDetail = detail.trim()
