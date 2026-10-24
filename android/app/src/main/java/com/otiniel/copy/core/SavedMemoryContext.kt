@@ -20,7 +20,8 @@ object SavedMemoryContext {
         )
         var included = 0
 
-        for (memory in memories.take(MAX_MEMORIES)) {
+        for (memory in memories) {
+            if (included >= MAX_MEMORIES) break
             val title = memory.title.trim()
             val detail = memory.detail.trim()
             if (title.isEmpty() || detail.isEmpty()) continue
