@@ -22,6 +22,7 @@ data class LegalSearchResult(
     val sourceUrl: String,
     val importedAt: Long,
     val contentHash: String,
+    val verificationStatus: String,
 )
 
 data class LegalImportResult(
@@ -124,9 +125,9 @@ class LegalKnowledgeRepository(
      * "vigência não verificada" status; search relevance is not legal validation.
      */
     fun search(query: String, limit: Int = DEFAULT_LIMIT): List<LegalSearchResult> {
+        require(query.length <= MAX_QUERY_CHARS) { "A consulta é muito longa." }
         val terms = tokenize(query)
         if (terms.isEmpty()) return emptyList()
-        require(query.length <= MAX_QUERY_CHARS) { "A consulta é muito longa." }
         require(limit in 1..MAX_LIMIT) { "O limite deve ficar entre 1 e $MAX_LIMIT." }
 
         val clauses = terms.joinToString(" AND ") { "p.$COLUMN_NORMALIZED_TEXT LIKE ?" }
@@ -134,7 +135,7 @@ class LegalKnowledgeRepository(
         val sql = """
             SELECT d.$COLUMN_TITLE, p.$COLUMN_LOCATOR, p.$COLUMN_TEXT,
                    s.$COLUMN_SOURCE_NAME, s.$COLUMN_SOURCE_URL,
-                   d.$COLUMN_IMPORTED_AT, d.$COLUMN_HASH
+                   d.$COLUMN_IMPORTED_AT, d.$COLUMN_HASH, d.$COLUMN_STATUS
             FROM $TABLE_PASSAGES p
             JOIN $TABLE_DOCUMENTS d ON d.$COLUMN_ID = p.$COLUMN_DOCUMENT_ID
             JOIN $TABLE_SOURCES s ON s.$COLUMN_ID = d.$COLUMN_SOURCE_ID
@@ -155,6 +156,7 @@ class LegalKnowledgeRepository(
                             sourceUrl = cursor.getString(4),
                             importedAt = cursor.getLong(5),
                             contentHash = cursor.getString(6),
+                            verificationStatus = cursor.getString(7),
                         ),
                     )
                 }
