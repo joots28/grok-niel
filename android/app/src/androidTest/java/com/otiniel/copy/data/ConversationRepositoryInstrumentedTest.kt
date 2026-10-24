@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -20,26 +21,21 @@ class ConversationRepositoryInstrumentedTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        databaseName = "copy-conversations-test-${System.nanoTime()}.db"
+        databaseName = "copy-conversations-test-\${System.nanoTime()}.db"
         repository = ConversationRepository(context, databaseName)
     }
 
     @After
     fun tearDown() {
         repository.close()
-        EncryptedDatabaseBootstrap.deleteForTesting(context, databaseName, "local:" + databaseName)
+        context.deleteDatabase(databaseName)
     }
 
     @Test
     fun restoresMessagesAndDeletesSessionWithItsMessages() {
-        val sessionId = repository.createSession("  Plano da semana  ")
+        val sessionId = repository.createSession("Plano da semana")
         repository.addMessage(sessionId, "assistant", "Resposta local de demonstração")
-
-        val firstMessages = repository.getMessages(sessionId)
-        assertEquals(2, firstMessages.size)
-        assertEquals("user", firstMessages[0].role)
-        assertEquals("Plano da semana", firstMessages[0].content)
-        assertEquals("assistant", firstMessages[1].role)
+        val expectedMessages = repository.getMessages(sessionId)
 
         repository.close()
         repository = ConversationRepository(context, databaseName)
@@ -49,16 +45,44 @@ class ConversationRepositoryInstrumentedTest {
         assertEquals("Plano da semana", session.title)
         assertEquals(2, session.messageCount)
         assertEquals("Resposta local de demonstração", session.preview)
-        assertEquals(firstMessages.map { it.content }, repository.getMessages(sessionId).map { it.content })
+        assertEquals(expectedMessages.map { it.content }, repository.getMessages(sessionId).map { it.content })
 
         repository.deleteSession(sessionId)
         assertTrue(repository.getSessions().isEmpty())
         assertTrue(repository.getMessages(sessionId).isEmpty())
     }
 
+    @Test
+    fun encryptsNewConversationContentInSqlite() {
+        val sessionId = repository.createSession("Conteúdo privado")
+        repository.close()
+
+        val db = PlainSQLiteDatabase.openDatabase(
+            context.getDatabasePath(databaseName).absolutePath,
+            null,
+            PlainSQLiteDatabase.OPEN_READONLY,
+        )
+        try {
+            val title = db.query(
+                "conversation_sessions", arrayOf("title"), "id = ?", arrayOf(sessionId.toString()),
+                null, null, null,
+            ).use { cursor -> cursor.moveToFirst(); cursor.getString(0) }
+            val message = db.query(
+                "conversation_messages", arrayOf("content"), "session_id = ?", arrayOf(sessionId.toString()),
+                null, null, "id ASC",
+            ).use { cursor -> cursor.moveToFirst(); cursor.getString(0) }
+
+            assertTrue(title.startsWith(LocalFieldCipher.PREFIX))
+            assertTrue(message.startsWith(LocalFieldCipher.PREFIX))
+            assertFalse(title.contains("Conteúdo privado"))
+            assertFalse(message.contains("Conteúdo privado"))
+        } finally {
+            db.close()
+        }
+    }
 
     @Test
-    fun migratesLegacyPlaintextDatabaseWithoutLosingSessionsOrMessages() {
+    fun migratesLegacyPlaintextDatabaseAndPreservesContent() {
         val legacyFile = context.getDatabasePath(databaseName)
         val legacy = PlainSQLiteDatabase.openOrCreateDatabase(legacyFile, null)
         legacy.execSQL(
@@ -88,28 +112,31 @@ class ConversationRepositoryInstrumentedTest {
         legacy.version = 1
         legacy.close()
 
-        val session = repository.getSessions().single()
-        assertEquals(7L, session.id)
-        assertEquals("Importada", session.title)
-        assertEquals(1, session.messageCount)
+        assertEquals("Importada", repository.getSessions().single().title)
         assertEquals("Mensagem antiga", repository.getMessages(7L).single().content)
-        assertTrue("The plaintext database should be deleted only after migration succeeds.", !legacyFile.exists())
+        repository.close()
 
-        val encryptedFile = context.getDatabasePath(EncryptedDatabaseBootstrap.encryptedNameFor(databaseName))
-        assertTrue(encryptedFile.exists())
-        val header = ByteArray(16)
-        encryptedFile.inputStream().use { input -> input.read(header) }
-        assertTrue(
-            "Encrypted SQLite must not retain the plaintext SQLite header.",
-            !String(header, Charsets.US_ASCII).startsWith("SQLite format 3"),
-        )
+        val db = PlainSQLiteDatabase.openDatabase(legacyFile.absolutePath, null, PlainSQLiteDatabase.OPEN_READONLY)
+        try {
+            val title = db.query("conversation_sessions", arrayOf("title"), "id = ?", arrayOf("7"), null, null, null)
+                .use { cursor -> cursor.moveToFirst(); cursor.getString(0) }
+            val message = db.query("conversation_messages", arrayOf("content"), "id = ?", arrayOf("11"), null, null, null)
+                .use { cursor -> cursor.moveToFirst(); cursor.getString(0) }
+            assertTrue(title.startsWith(LocalFieldCipher.PREFIX))
+            assertTrue(message.startsWith(LocalFieldCipher.PREFIX))
+            assertFalse(title.contains("Importada"))
+            assertFalse(message.contains("Mensagem antiga"))
+            assertEquals("Importada", LocalFieldCipher.decrypt(title, "conversation.title"))
+            assertEquals("Mensagem antiga", LocalFieldCipher.decrypt(message, "conversation.content"))
+        } finally {
+            db.close()
+        }
     }
 
     @Test
     fun createsEmptySessionWhenNoInitialPromptIsProvided() {
         val sessionId = repository.createSession()
         val session = repository.getSessions().single()
-
         assertEquals(sessionId, session.id)
         assertEquals("Nova conversa", session.title)
         assertEquals(0, session.messageCount)

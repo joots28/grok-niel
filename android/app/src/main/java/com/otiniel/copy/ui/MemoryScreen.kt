@@ -85,11 +85,11 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("Armazenamento local", fontWeight = FontWeight.SemiBold)
-                        Text("SQLCipher · base criptografada local", color = CopyMuted, fontSize = 11.sp)
+                        Text("AES-GCM · conteúdo protegido", color = CopyMuted, fontSize = 11.sp)
                     }
                 }
                 Text(
-                    "O banco local usa criptografia SQLCipher com chave protegida pelo Android Keystore. As memórias não são sincronizadas com a nuvem; o arquivo JSON exportado fica em texto claro no destino escolhido.",
+                    "Títulos e conteúdos são cifrados com AES-GCM e uma chave do Android Keystore. Datas e relações permanecem como metadados SQLite; o JSON exportado fica em texto claro no destino escolhido.",
                     color = CopyMuted,
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
@@ -231,7 +231,7 @@ fun MemoryScreen(memoryViewModel: MemoryViewModel = viewModel()) {
 
         item {
             Text(
-                "O arquivo JSON contém o conteúdo das memórias; salve-o apenas em um local confiável. O banco local ainda não possui criptografia própria.",
+                "O JSON exportado contém dados em texto claro: salve-o apenas em um local confiável. O conteúdo armazenado usa AES-GCM, mas os metadados SQLite não são cifrados.",
                 color = CopyMuted,
                 fontSize = 11.sp,
                 lineHeight = 16.sp,

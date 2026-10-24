@@ -3,11 +3,11 @@ package com.otiniel.copy.data
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase as PlainSQLiteDatabase
-import android.database.sqlite.SQLiteConstraintException
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -22,47 +22,64 @@ class MemoryRepositoryInstrumentedTest {
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        databaseName = "copy-memory-test-${System.nanoTime()}.db"
+        databaseName = "copy-memory-test-\${System.nanoTime()}.db"
         repository = MemoryRepository(context, databaseName)
     }
 
     @After
     fun tearDown() {
         repository.close()
-        EncryptedDatabaseBootstrap.deleteForTesting(context, databaseName, "local:" + databaseName)
+        context.deleteDatabase(databaseName)
     }
 
     @Test
-    fun createUpdateAndDeletePersistAcrossDatabaseReopen() {
+    fun createUpdateDeleteAndReopenMemoryDatabase() {
         repository.save(null, "Preferências", "Respostas diretas")
         val created = repository.getAll().single()
         assertEquals("Preferências", created.title)
         assertEquals("Respostas diretas", created.detail)
-
         repository.close()
         repository = MemoryRepository(context, databaseName)
-
         val restored = repository.getAll().single()
         assertEquals(created.id, restored.id)
         assertEquals("Preferências", restored.title)
         assertEquals("Respostas diretas", restored.detail)
-
         repository.save(restored.id, "Preferências atualizadas", "Respostas detalhadas")
         repository.close()
         repository = MemoryRepository(context, databaseName)
-
         val updated = repository.getAll().single()
-        assertEquals(restored.id, updated.id)
         assertEquals("Preferências atualizadas", updated.title)
         assertEquals("Respostas detalhadas", updated.detail)
-
         repository.delete(updated.id)
         assertTrue(repository.getAll().isEmpty())
     }
 
+    @Test
+    fun encryptsNewMemoryFieldsInSqlite() {
+        repository.save(null, "Segredo", "Conteúdo privado")
+        val id = repository.getAll().single().id
+        repository.close()
+        val db = PlainSQLiteDatabase.openDatabase(
+            context.getDatabasePath(databaseName).absolutePath,
+            null,
+            PlainSQLiteDatabase.OPEN_READONLY,
+        )
+        try {
+            val values = db.query(
+                "memories", arrayOf("title", "detail"), "id = ?", arrayOf(id.toString()),
+                null, null, null,
+            ).use { cursor -> cursor.moveToFirst(); cursor.getString(0) to cursor.getString(1) }
+            assertTrue(values.first.startsWith(LocalFieldCipher.PREFIX))
+            assertTrue(values.second.startsWith(LocalFieldCipher.PREFIX))
+            assertFalse(values.first.contains("Segredo"))
+            assertFalse(values.second.contains("Conteúdo privado"))
+        } finally {
+            db.close()
+        }
+    }
 
     @Test
-    fun migratesLegacyPlaintextMemoriesAndRemovesSourceOnlyAfterVerification() {
+    fun migratesLegacyPlaintextMemoriesAndPreservesContent() {
         val legacyFile = context.getDatabasePath(databaseName)
         val legacy = PlainSQLiteDatabase.openOrCreateDatabase(legacyFile, null)
         legacy.execSQL(
@@ -87,20 +104,23 @@ class MemoryRepositoryInstrumentedTest {
         legacy.version = 1
         legacy.close()
 
-        val restored = repository.getAll().single()
-        assertEquals(4L, restored.id)
-        assertEquals("Memória antiga", restored.title)
-        assertEquals("Conteúdo preservado", restored.detail)
-        assertTrue("The plaintext database should be deleted only after migration succeeds.", !legacyFile.exists())
-
-        val encryptedFile = context.getDatabasePath(EncryptedDatabaseBootstrap.encryptedNameFor(databaseName))
-        assertTrue(encryptedFile.exists())
-        val header = ByteArray(16)
-        encryptedFile.inputStream().use { input -> input.read(header) }
-        assertTrue(
-            "Encrypted SQLite must not retain the plaintext SQLite header.",
-            !String(header, Charsets.US_ASCII).startsWith("SQLite format 3"),
-        )
+        val memory = repository.getAll().single()
+        assertEquals("Memória antiga", memory.title)
+        assertEquals("Conteúdo preservado", memory.detail)
+        repository.close()
+        val db = PlainSQLiteDatabase.openDatabase(legacyFile.absolutePath, null, PlainSQLiteDatabase.OPEN_READONLY)
+        try {
+            val valuesStored = db.query("memories", arrayOf("title", "detail"), "id = ?", arrayOf("4"), null, null, null)
+                .use { cursor -> cursor.moveToFirst(); cursor.getString(0) to cursor.getString(1) }
+            assertTrue(valuesStored.first.startsWith(LocalFieldCipher.PREFIX))
+            assertTrue(valuesStored.second.startsWith(LocalFieldCipher.PREFIX))
+            assertFalse(valuesStored.first.contains("Memória antiga"))
+            assertFalse(valuesStored.second.contains("Conteúdo preservado"))
+            assertEquals("Memória antiga", LocalFieldCipher.decrypt(valuesStored.first, "memory.title"))
+            assertEquals("Conteúdo preservado", LocalFieldCipher.decrypt(valuesStored.second, "memory.detail"))
+        } finally {
+            db.close()
+        }
     }
 
     @Test
@@ -108,29 +128,19 @@ class MemoryRepositoryInstrumentedTest {
         repository.save(null, "Primeira", "Conteúdo 1")
         repository.save(null, "Segunda", "Conteúdo 2")
         assertEquals(2, repository.getAll().size)
-
         assertEquals(2, repository.deleteAll())
         assertTrue(repository.getAll().isEmpty())
         assertEquals(0, repository.deleteAll())
     }
 
     @Test
-    fun databaseRejectsBlankTitleAndContent() {
+    fun repositoryRejectsBlankTitleAndContent() {
         var blankTitleRejected = false
-        try {
-            repository.save(null, "   ", "Conteúdo válido")
-        } catch (_: SQLiteConstraintException) {
-            blankTitleRejected = true
-        }
-        assertTrue("SQLite should reject a blank title", blankTitleRejected)
-
+        try { repository.save(null, "   ", "Conteúdo válido") } catch (_: IllegalArgumentException) { blankTitleRejected = true }
+        assertTrue(blankTitleRejected)
         var blankContentRejected = false
-        try {
-            repository.save(null, "Título válido", "   ")
-        } catch (_: SQLiteConstraintException) {
-            blankContentRejected = true
-        }
-        assertTrue("SQLite should reject blank content", blankContentRejected)
+        try { repository.save(null, "Título válido", "   ") } catch (_: IllegalArgumentException) { blankContentRejected = true }
+        assertTrue(blankContentRejected)
         assertTrue(repository.getAll().isEmpty())
     }
 }

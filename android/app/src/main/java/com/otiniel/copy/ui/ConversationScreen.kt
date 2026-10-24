@@ -73,7 +73,7 @@ fun ConversationScreen(
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 DemoLabel("IA NÃO CONECTADA")
                 Text(
-                    "As mensagens são salvas em uma base SQLCipher local, com a chave protegida pelo Android Keystore. Nenhuma mensagem é enviada a um modelo remoto nesta etapa.",
+                    "Títulos e mensagens são cifrados com AES-GCM usando uma chave do Android Keystore. Identificadores, datas e relações continuam como metadados SQLite; nenhuma mensagem é enviada a um modelo remoto nesta etapa.",
                     color = CopyMuted,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
