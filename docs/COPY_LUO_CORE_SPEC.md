@@ -1,6 +1,6 @@
 # Copy — especificação do Luo Core
 
-**Status:** especificação inicial; ainda não implementada no aplicativo.  
+**Status:** implementação incremental em andamento. A identidade, a leitura controlada das memórias e a preparação de contexto já têm código Kotlin; o runtime de IA local e o fluxo de importação do modelo estão em validação. Consulte também `docs/COPY_LOCAL_AI_SETUP.md`.  
 **Escopo:** identidade de projeto e princípios de memória do Copy. Esta etapa não altera telas, bancos de dados, permissões, provedores de IA ou comportamento em execução.
 
 ## 1. Propósito e homenagem
@@ -83,10 +83,19 @@ Esses itens exigem etapas separadas, inspeção do código atual e testes antes 
 - [x] Consentimento, revisão, exportação e exclusão definidos.
 - [x] Privacidade local-first e sem serviço pago obrigatório como requisitos.
 - [x] Limites e itens ainda não implementados declarados.
-- [ ] Revisar esta especificação com o código atual de memória antes de iniciar a implementação.
+- [x] Revisar esta especificação com o código atual de memória antes de iniciar a implementação.
 - [ ] Implementar em uma alteração isolada, com testes de regressão.
 - [ ] Validar no CI antes de avançar para a próxima etapa.
 
 ## Registro de execução
 
-A criação deste documento é a única mudança prevista nesta etapa. A implementação do Luo Core e qualquer mudança no comportamento do aplicativo permanecem pendentes.
+Implementação incremental na branch `copy/foundation-requirements`:
+
+- Identidade estática do Luo Core e testes de princípios.
+- Leitura individual e listagem de memórias salvas, com testes de repositório.
+- Contexto limitado, rotulado como dado do usuário, e limites para histórico/mensagens.
+- Runtime LiteRT-LM opcional com modelo local importado pelo usuário; não há chave de API, provedor remoto obrigatório nem download automático.
+- Central de controle com fluxo explícito para baixar e importar um arquivo de modelo; inferência configurada para CPU como opção conservadora de compatibilidade.
+- Testes unitários e instrumentados adicionados. O aceite final depende do resultado atual do GitHub Actions e de ensaio em dispositivo físico.
+
+A geração local não implica que voz, pesquisa web, execução de comandos Android, controle de outros aplicativos ou desempenho no POCO X5 Pro já estejam validados. Esses recursos continuam fora da implementação concluída e devem ser adicionados como etapas separadas. A PR permanece aberta e não mesclada.
