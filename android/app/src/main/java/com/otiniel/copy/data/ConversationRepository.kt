@@ -123,6 +123,22 @@ class ConversationRepository(context: Context, databaseName: String = DATABASE_N
         check(deleted == 1) { "Conversation no longer exists." }
     }
 
+    /**
+     * Deletes every conversation in one SQLite transaction. Foreign-key cascade removes messages.
+     * Returns the number of sessions removed so callers can report the real result.
+     */
+    fun deleteAllSessions(): Int {
+        val db = helper.writableDatabase
+        db.beginTransaction()
+        try {
+            val deleted = db.delete(TABLE_SESSIONS, null, null)
+            db.setTransactionSuccessful()
+            return deleted
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     fun close() = helper.close()
 
     private fun storedTitle(db: SQLiteDatabase, sessionId: Long): String =
