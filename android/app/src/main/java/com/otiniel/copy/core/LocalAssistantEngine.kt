@@ -97,7 +97,7 @@ class LocalAssistantEngine(
                 }
 
             val config = ConversationConfig(
-                systemInstruction = Contents.of(LuoPromptBuilder.systemInstruction(savedMemoryContext)),
+                systemInstruction = Contents.of(LuoPromptBuilder.systemInstruction()),
                 initialMessages = initialMessages,
                 maxOutputToken = MAX_OUTPUT_TOKENS,
                 thinkingConfig = ThinkingConfig(enableThinking = false),
@@ -109,7 +109,7 @@ class LocalAssistantEngine(
                 conversation.use { currentConversation ->
                     val answer = StringBuilder()
                     currentConversation.sendMessageAsync(
-                        LuoPromptBuilder.boundUserPrompt(prompt),
+                        LuoPromptBuilder.boundUserTurn(prompt, savedMemoryContext),
                         maxOutputToken = MAX_OUTPUT_TOKENS,
                         thinkingConfig = ThinkingConfig(enableThinking = false),
                     ).collect { chunk ->
