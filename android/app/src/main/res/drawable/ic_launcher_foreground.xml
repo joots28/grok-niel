@@ -50,16 +50,12 @@
         android:strokeWidth="2.2"
         android:strokeLineCap="round"
         android:pathData="M48,62 C51,66 57,66 60,62" />
-    <circle
+    <path
         android:fillColor="#B7F7FF"
         android:fillAlpha="0.9"
-        android:cx="37"
-        android:cy="74"
-        android:radius="2.2" />
-    <circle
+        android:pathData="M37,71.8 C38.2,71.8 39.2,72.8 39.2,74 C39.2,75.2 38.2,76.2 37,76.2 C35.8,76.2 34.8,75.2 34.8,74 C34.8,72.8 35.8,71.8 37,71.8 Z" />
+    <path
         android:fillColor="#B7F7FF"
         android:fillAlpha="0.9"
-        android:cx="71"
-        android:cy="74"
-        android:radius="2.2" />
+        android:pathData="M71,71.8 C72.2,71.8 73.2,72.8 73.2,74 C73.2,75.2 72.2,76.2 71,76.2 C69.8,76.2 68.8,75.2 68.8,74 C68.8,72.8 69.8,71.8 71,71.8 Z" />
 </vector>
