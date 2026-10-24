@@ -25,7 +25,7 @@ class SavedMemoryContextTest {
     @Test
     fun skipsBlankEntriesAndLimitsNumberOfMemories() {
         val memories = listOf(MemoryItem(1L, " ", "ignorar")) +
-            (1..SavedMemoryContext.MAX_MEMORIES + 2).map {
+            (1..(SavedMemoryContext.MAX_MEMORIES + 2)).map {
                 MemoryItem(it.toLong() + 1L, "Título $it", "Detalhe $it")
             }
 
