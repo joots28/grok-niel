@@ -10,7 +10,7 @@ import com.otiniel.copy.data.MemoryItem
  */
 object SavedMemoryContext {
     const val MAX_MEMORIES = 8
-    const val MAX_CONTEXT_CHARS = 6000
+    const val MAX_CONTEXT_CHARS = 1200
 
     fun build(memories: List<MemoryItem>): String {
         if (memories.isEmpty()) return ""
