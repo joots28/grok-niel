@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +46,8 @@ import com.otiniel.copy.ui.theme.CopySurface
 import com.otiniel.copy.ui.theme.CopySurfaceRaised
 import com.otiniel.copy.ui.theme.CopyText
 
+private val CopyContentMaxWidth = 760.dp
+
 @Composable
 fun CopyApp() {
     var selectedTabName by rememberSaveable { mutableStateOf(CopyTab.HOME.name) }
@@ -55,18 +59,36 @@ fun CopyApp() {
     Scaffold(
         containerColor = CopyBackground,
         topBar = {
-            if (conversationOpen) {
-                ConversationTopBar(onBack = { conversationOpen = false })
-            } else {
-                MainTopBar()
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier.widthIn(max = CopyContentMaxWidth).fillMaxWidth(),
+                ) {
+                    if (conversationOpen) {
+                        ConversationTopBar(onBack = { conversationOpen = false })
+                    } else {
+                        MainTopBar()
+                    }
+                }
             }
         },
         bottomBar = {
             if (!conversationOpen) {
-                CopyNavigationBar(
-                    selectedTab = selectedTab,
-                    onSelect = { selectedTabName = it.name },
-                )
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier.widthIn(max = CopyContentMaxWidth).fillMaxWidth(),
+                    ) {
+                        CopyNavigationBar(
+                            selectedTab = selectedTab,
+                            onSelect = { selectedTabName = it.name },
+                        )
+                    }
+                }
             }
         },
     ) { innerPadding ->
@@ -74,7 +96,13 @@ fun CopyApp() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter,
         ) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = CopyContentMaxWidth)
+                    .fillMaxSize(),
+            ) {
             if (conversationOpen) {
                 ConversationScreen(
                     sessionId = activeConversationId,
@@ -107,6 +135,7 @@ fun CopyApp() {
                         },
                     )
                 }
+            }
             }
         }
     }
