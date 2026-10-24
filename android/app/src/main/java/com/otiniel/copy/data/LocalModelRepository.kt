@@ -70,12 +70,19 @@ class LocalModelRepository(private val context: Context) {
                 "O arquivo não tem a assinatura LITERTLM esperada. Selecione um arquivo .litertlm compatível."
             }
 
-            if (modelFile.exists() && !modelFile.delete()) {
-                throw IOException("Não foi possível substituir o modelo anterior.")
+            val backupFile = File(modelDirectory, "$MODEL_FILENAME.previous")
+            if (backupFile.exists() && !backupFile.delete()) {
+                throw IOException("Não foi possível limpar o arquivo temporário da versão anterior.")
+            }
+            val hadPreviousModel = modelFile.exists()
+            if (hadPreviousModel && !modelFile.renameTo(backupFile)) {
+                throw IOException("Não foi possível preservar o modelo anterior durante a atualização.")
             }
             if (!temporaryFile.renameTo(modelFile)) {
+                if (hadPreviousModel) backupFile.renameTo(modelFile)
                 throw IOException("Não foi possível finalizar a cópia do modelo.")
             }
+            backupFile.delete()
             return status()
         } catch (error: Exception) {
             temporaryFile.delete()
