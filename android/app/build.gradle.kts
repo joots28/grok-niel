@@ -4,7 +4,9 @@ plugins {
 }
 android {
     namespace = "com.otiniel.copy"
-    compileSdk = 36
+    // Compose BOM 2026.09 includes AndroidX artifacts that require API 37 to compile.
+    // Keep targetSdk at 36 to avoid opting into newer runtime behavior prematurely.
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.otiniel.copy"
         minSdk = 28
