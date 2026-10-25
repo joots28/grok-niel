@@ -4,9 +4,8 @@ plugins {
 }
 android {
     namespace = "com.otiniel.copy"
-    // Compose BOM 2026.09 includes AndroidX artifacts that require API 37 to compile.
-    // Keep targetSdk at 36 to avoid opting into newer runtime behavior prematurely.
-    compileSdk = 37
+    // Compose BOM 2026.06 keeps the foundation compatible with Android API 36.
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.otiniel.copy"
         minSdk = 28
@@ -23,7 +22,7 @@ android {
 }
 kotlin { jvmToolchain(17) }
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.00")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.12.0")
     implementation("androidx.compose.foundation:foundation")
