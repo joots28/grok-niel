@@ -63,6 +63,22 @@ jobs:
       - name: Run tests and assemble debug APK
         run: gradle -p android testDebugUnitTest assembleDebug
 
+      - name: Verify the exported JNI entry point
+        run: |
+          NDK_BIN="$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          "$NDK_BIN/llvm-nm" -D android/app/src/main/jniLibs/x86_64/libcopy_mobile_core.so | grep -F "Java_com_otiniel_copy_CopyRustBridge_nativeReply"
+
+      - name: Run Rust JNI smoke test on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: gradle -p android connectedDebugAndroidTest
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
