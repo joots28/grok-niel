@@ -133,7 +133,7 @@ object ProviderChatClient {
         }
     }
 
-    private fun buildSystemPrompt(memoryContext: List<String>): String {
+    internal fun buildSystemPrompt(memoryContext: List<String>): String {
         val base =
             "Você é COPY, um assistente pessoal útil, honesto e cuidadoso. " +
                 "Responda em português brasileiro por padrão. " +
