@@ -1,0 +1,44 @@
+name: Assemble COPY Figma Make source backup
+
+on:
+  push:
+    branches:
+      - copy-foundation
+    paths:
+      - "docs/backups/READY"
+
+permissions:
+  contents: write
+
+jobs:
+  assemble-source-pdf:
+    if: github.ref_name == 'copy-foundation'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout backup branch
+        uses: actions/checkout@v4
+        with:
+          ref: copy-foundation
+          fetch-depth: 0
+
+      - name: Assemble and validate PDF
+        shell: bash
+        run: |
+          if [ ! -f docs/backups/READY ]; then
+            echo "No backup assembly request; nothing to do."
+            exit 0
+          fi
+          cat docs/backups/.source_pdf/part-*.b64 | tr -d '\n\r' | base64 --decode > docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
+          test "$(head -c 5 docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf)" = "%PDF-"
+          file docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
+          pdfinfo docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf | head -n 12
+
+      - name: Commit the real PDF and remove temporary parts
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
+          git rm -r docs/backups/.source_pdf docs/backups/READY
+          git commit -m "Add Figma Make source backup PDF"
+          git push origin HEAD:copy-foundation
