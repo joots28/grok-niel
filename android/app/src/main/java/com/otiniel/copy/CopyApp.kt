@@ -73,12 +73,19 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
     var providerConfigured by remember { mutableStateOf(false) }
     var providerNotice by rememberSaveable { mutableStateOf("") }
     var providerSaving by remember { mutableStateOf(false) }
-    val memories = remember { mutableStateListOf("Prefiro respostas objetivas e práticas.", "Quero priorizar funcionamento local e privacidade.") }
+    val memories = remember { mutableStateListOf<PersonalMemory>() }
+    var memoryDraft by rememberSaveable { mutableStateOf("") }
+    var memoryNotice by rememberSaveable { mutableStateOf("") }
+    var savingMemory by remember { mutableStateOf(false) }
 
     LaunchedEffect(database) {
-        val saved = withContext(Dispatchers.IO) { database.getMessages() }
+        val stored = withContext(Dispatchers.IO) {
+            database.getMessages() to database.getMemories()
+        }
         messages.clear()
-        messages.addAll(saved)
+        messages.addAll(stored.first)
+        memories.clear()
+        memories.addAll(stored.second)
     }
 
     LaunchedEffect(providerStore) {
@@ -387,32 +394,105 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             Spacer(Modifier.height(10.dp))
                             Text("O que o Copy guarda.", color = CopyText, fontSize = 28.sp, fontWeight = FontWeight.Light)
                             Spacer(Modifier.height(8.dp))
-                            Text("Prévia visual. Estes exemplos são temporários e ainda não representam um sistema de memória persistente.", color = CopyMuted, fontSize = 13.sp, lineHeight = 20.sp)
+                            Text(
+                                "Registre apenas informações que você escolher. Elas ficam no banco local deste aparelho, sem sincronização automática. Por enquanto, as memórias ainda não são anexadas automaticamente aos pedidos enviados à IA.",
+                                color = CopyMuted,
+                                fontSize = 13.sp,
+                                lineHeight = 20.sp
+                            )
                             Spacer(Modifier.height(16.dp))
-                            SettingRow("Memória habilitada", "Preferência desta sessão", memoryEnabled) { memoryEnabled = it }
-                            SettingRow("Sincronização opcional", "Não há serviço de sincronização conectado", syncEnabled) { syncEnabled = it }
-                            Spacer(Modifier.height(16.dp))
-                            Text("EXEMPLOS DE MEMÓRIA", color = CopyMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
-                            Spacer(Modifier.height(8.dp))
+                            SettingRow("Memória pessoal habilitada", "Oculta ou mostra o conteúdo desta área; não apaga os itens salvos", memoryEnabled) { memoryEnabled = it }
+                            SettingRow("Sincronização opcional", "Nenhum serviço de sincronização está conectado", syncEnabled) { syncEnabled = it }
+                            Spacer(Modifier.height(18.dp))
                             if (!memoryEnabled) {
-                                Text("A visualização de memória está desativada nesta sessão.", color = CopyMuted, fontSize = 13.sp)
+                                Text("A área de memória está desativada. Os itens continuam salvos no aparelho até serem removidos manualmente.", color = CopyMuted, fontSize = 13.sp, lineHeight = 20.sp)
                             } else {
-                                memories.forEachIndexed { index, memory ->
-                                    Surface(color = CopySurface, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, CopyLine)) {
-                                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Column(Modifier.weight(1f)) {
-                                                Text(memory, color = CopyText, fontSize = 14.sp)
-                                                Spacer(Modifier.height(4.dp))
-                                                Text("Exemplo · não persistido", color = CopyMuted, fontSize = 10.sp)
+                                Text("ADICIONAR MEMÓRIA", color = CopyCyan, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = memoryDraft,
+                                    onValueChange = {
+                                        memoryDraft = it.take(500)
+                                        memoryNotice = ""
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("Informação que você escolheu guardar") },
+                                    placeholder = { Text("Ex.: prefiro respostas diretas") },
+                                    minLines = 2,
+                                    maxLines = 4,
+                                    colors = providerFieldColors()
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    Button(
+                                        onClick = {
+                                            val draft = memoryDraft.trim()
+                                            if (draft.isEmpty()) {
+                                                memoryNotice = "Escreva uma informação antes de salvar."
+                                            } else {
+                                                scope.launch {
+                                                    savingMemory = true
+                                                    memoryNotice = ""
+                                                    try {
+                                                        val saved = withContext(Dispatchers.IO) { database.insertMemory(draft) }
+                                                        memories.add(saved)
+                                                        memoryDraft = ""
+                                                        memoryNotice = "Memória salva neste aparelho."
+                                                    } catch (error: Exception) {
+                                                        memoryNotice = error.message ?: "Não foi possível salvar a memória."
+                                                    } finally {
+                                                        savingMemory = false
+                                                    }
+                                                }
                                             }
-                                            TextButton(onClick = { memories.removeAt(index) }) { Text("Remover", color = CopyCyan, fontSize = 11.sp) }
-                                        }
+                                        },
+                                        enabled = !savingMemory && memoryDraft.trim().isNotEmpty(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = CopyBlue, contentColor = Color.White)
+                                    ) {
+                                        Text(if (savingMemory) "Salvando..." else "Salvar memória")
                                     }
-                                    Spacer(Modifier.height(8.dp))
                                 }
-                            }
-                            OutlinedButton(onClick = { memories.add("Nova preferência de exemplo") }, border = BorderStroke(1.dp, CopyBlue)) {
-                                Text("Adicionar exemplo", color = CopyCyan)
+                                if (memoryNotice.isNotBlank()) {
+                                    Text(memoryNotice, color = if (memoryNotice.startsWith("Memória salva")) CopyCyan else CopyMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                                }
+                                Spacer(Modifier.height(18.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("MEMÓRIAS SALVAS", color = CopyMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                                    Text(memories.size.toString().padStart(2, '0'), color = CopyCyan, fontSize = 11.sp)
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                if (memories.isEmpty()) {
+                                    Text("Nenhuma memória salva ainda.", color = CopyMuted, fontSize = 13.sp)
+                                } else {
+                                    memories.toList().forEach { memory ->
+                                        Surface(color = CopySurface, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, CopyLine)) {
+                                            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(memory.content, color = CopyText, fontSize = 14.sp, lineHeight = 20.sp)
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text(
+                                                        "Salva em " + java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale("pt", "BR")).format(java.util.Date(memory.createdAt)),
+                                                        color = CopyMuted,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                                TextButton(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            try {
+                                                                withContext(Dispatchers.IO) { database.deleteMemory(memory.id) }
+                                                                memories.removeAll { it.id == memory.id }
+                                                                memoryNotice = "Memória removida deste aparelho."
+                                                            } catch (_: Exception) {
+                                                                memoryNotice = "Não foi possível remover a memória."
+                                                            }
+                                                        }
+                                                    }
+                                                ) { Text("Remover", color = CopyCyan, fontSize = 11.sp) }
+                                            }
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                    }
+                                }
                             }
                         }
                     }
