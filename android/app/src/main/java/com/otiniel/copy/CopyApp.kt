@@ -661,7 +661,10 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                             try {
                                                 withContext(Dispatchers.IO) {
                                                     providerStore.save(providerEndpoint, providerModel, providerApiKey)
+                                                    providerStore.setEnabled(false)
                                                 }
+                                                providerEnabled = false
+                                                shareMemoryWithProvider = false
                                                 val stored = withContext(Dispatchers.IO) { providerStore.loadSettings() }
                                                 if (stored != null) {
                                                     providerEndpoint = stored.baseUrl
@@ -669,7 +672,7 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                                     providerConfigured = stored.configured
                                                 }
                                                 providerApiKey = ""
-                                                providerNotice = "Configuração salva com chave criptografada. A IA externa continua desativada até você habilitá-la."
+                                                providerNotice = "Configuração salva com chave criptografada. A IA externa foi desativada e a autorização de envio de memórias foi revogada; ative novamente quando estiver pronto."
                                                 Toast.makeText(context, "Configuração do provedor salva.", Toast.LENGTH_SHORT).show()
                                             } catch (error: Exception) {
                                                 providerNotice = error.message ?: "Não foi possível salvar a configuração."
@@ -692,6 +695,8 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                             providerApiKey = ""
                                             providerEnabled = false
                                             providerConfigured = false
+                                            shareMemoryWithProvider = false
+                                            confirmMemorySharing = false
                                             providerNotice = "Provedor e chave salvos removidos deste aplicativo."
                                         }
                                     },
@@ -719,10 +724,11 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                 try {
                                     providerStore.setEnabled(enabled)
                                     providerEnabled = enabled
+                                    if (!enabled) shareMemoryWithProvider = false
                                     providerNotice = if (enabled) {
                                         "IA externa habilitada. Confira as condições de uso e custos do provedor."
                                     } else {
-                                        "IA externa desativada. As próximas mensagens usarão apenas comandos locais."
+                                        "IA externa desativada e autorização de memória revogada. As próximas mensagens usarão apenas comandos locais."
                                     }
                                 } catch (error: Exception) {
                                     providerEnabled = false
