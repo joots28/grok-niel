@@ -1,104 +1,85 @@
 # Copy — Plano de evolução
 
-Copy é o assistente pessoal Android-first, com núcleo local e conectado, memória controlável e ferramentas autorizadas. Este documento separa capacidades existentes na base de funcionalidades que ainda precisam ser implementadas ou validadas.
+Copy é o assistente pessoal Android-first, com funcionamento local e conectado, memória controlável e ferramentas autorizadas. Este documento diferencia capacidades existentes de funcionalidades que ainda precisam ser implementadas ou validadas.
 
 ## Estado atual — 27 de outubro de 2026
 
-- Repositório: `joots28/grok-niel`; branch de trabalho: `copy-foundation`.
-- Foi adicionada uma primeira fundação Android independente em `android/`, usando Kotlin e Jetpack Compose.
-- A fundação contém interface de conversa provisória, histórico SQLite local, comandos limitados de hora/data/ajuda, captura de fala por serviço disponível no Android e leitura em voz alta por TextToSpeech.
-- Foram adicionados testes unitários dos comandos locais e um workflow de CI para executar testes e montar o APK de debug.
-- O núcleo Rust ainda é um agente de terminal; não há integração Kotlin–Rust nem motor de IA conectado à tela.
-- A tela Android agora possui uma camada opcional para provedores HTTPS compatíveis com OpenAI Chat Completions; a ativação é explícita e desativada por padrão, e a chave é cifrada pelo Android Keystore.
-- Essa camada remota não é a integração do runtime Rust. Não foram incluídos pesos de modelo nem inferência local no APK; o provedor escolhido pode ter limites ou custos.
-- A interface não foi comparada com o Figma específico do Copy; não se afirma correspondência visual exata.
-- Build, testes automatizados e instalação no POCO X5 Pro ainda precisam de resultados observados antes de marcar a fase como validada.
+- Repositório: `joots28/grok-niel`; branch: `copy-foundation`.
+- A aplicação Android em Kotlin + Jetpack Compose tem histórico de chat SQLite, comandos offline limitados, reconhecimento de fala do Android e TextToSpeech.
+- Há uma camada de chat remoto opcional, compatível com endpoints HTTPS OpenAI Chat Completions, desativada por padrão. A chave é cifrada com AES-GCM e protegida pelo Android Keystore.
+- A memória pessoal agora é persistida em SQLite, cifrada em repouso com chave separada do Android Keystore, e pode ser adicionada/removida/excluída na UI. Não existe sincronização; as memórias não são enviadas automaticamente ao provedor.
+- Os commits de provedor remoto passaram no CI. A validação do build/tests depois das mudanças recentes de memória ainda está pendente.
+- O núcleo Rust original segue como agente de terminal. Nenhum runtime Rust foi conectado ao Android, nenhum modelo local/peso foi incorporado ao APK.
+- A interface ainda precisa de comparação visual verificável com o Figma específico do Copy.
 
 ## Princípios
 
-- Reaproveitar a arquitetura Rust existente depois de mapear interfaces e dependências.
-- Criar identidade, configuração e experiência próprias para o Copy; não apresentar o projeto como produto oficial da xAI.
-- Preservar `LICENSE`, `THIRD-PARTY-NOTICES` e os avisos de licenças de dependências.
+- Reaproveitar arquitetura Rust apenas após mapear contratos, dependências e permissões.
+- Criar identidade e experiência próprias para o Copy; não apresentar o projeto como produto oficial da xAI.
+- Preservar `LICENSE`, `THIRD-PARTY-NOTICES` e os avisos de licenças de terceiros.
 - Nunca colocar chaves de API, tokens ou credenciais no repositório.
-- Exigir autorização explícita para operações externas ou destrutivas; manter logs úteis sem registrar segredos.
-- Fazer mudanças pequenas, revisar os arquivos envolvidos e executar verificações direcionadas antes de integrar.
+- Exigir autorização explícita para envio externo e para operações destrutivas; manter logs úteis sem registrar segredos.
+- Fazer mudanças pequenas, revisáveis e com testes direcionados.
+- Não declarar a interface fiel ao Figma antes de compará-la com a referência aprovada.
 
-## Estado inicial verificado
-
-- Base: workspace Rust com edição 2024 e múltiplos crates.
-- Binário de entrada atual: `xai-grok-pager-bin`; a base original é um agente de programação de terminal (TUI/CLI).
-- Runtime do agente: crate `xai-grok-shell`.
-- Configuração: crate `xai-grok-config`.
-- O arquivo raiz `Cargo.toml` é gerado e deve ser tratado como somente leitura; preferir manifests por crate.
-- A compilação/testes do workspace ainda precisam ser executados em ambiente de build reproduzível.
-
-## Fases propostas
+## Fases
 
 ### Fase 0 — Diagnóstico reproduzível
-1. Conferir toolchain Rust, dependências de build e instruções.
-2. Executar `cargo fmt --all -- --check` e verificações/testes de crates específicos.
+1. Conferir toolchain, dependências de build e instruções.
+2. Executar formatação, verificações e testes de crates específicos.
 3. Registrar erros de ambiente separadamente de erros de código.
 4. Mapear autenticação, seleção de modelo, configuração e limites de permissões.
 
-**Estado:** auditoria documental inicial registrada; compilação e testes Rust não executados nesta sessão.
+**Estado:** auditoria documental inicial feita; build/testes completos do runtime Rust não foram executados nesta etapa.
 
 ### Fase 1 — Fundação Android
-1. Configurar a aplicação Kotlin e a tela de conversa.
-2. Adicionar persistência local e uma primeira bateria de testes.
-3. Configurar CI para build do APK de debug.
+1. Configurar aplicação Kotlin/Compose e tela de conversa.
+2. Adicionar persistência local e testes iniciais.
+3. Configurar CI para testes e APK de debug.
 
-**Estado:** arquivos criados na branch `copy-foundation`; aguardando resultado do workflow e teste em dispositivo.
+**Estado:** fundação existe na branch `copy-foundation`; builds Android anteriores passaram. Validar novamente depois da memória cifrada.
 
 ### Fase 2 — Design fiel e contratos
-1. Identificar a URL/arquivo correto do Figma do Copy e capturar a referência visual autorizada.
-2. Ajustar a interface para corresponder ao design aprovado, sem redesenho arbitrário.
-3. Definir contrato versionado, modelo de erros, timeout e cancelamento para a integração Kotlin–Rust.
+1. Identificar a referência exata do Figma do Copy.
+2. Comparar e ajustar a UI sem redesenho arbitrário.
+3. Definir contrato versionado, erros, timeout e cancelamento para o runtime Android.
 
-**Portão:** comparar a tela com o Figma e testar o contrato sem executar ações externas não autorizadas.
+**Portão:** comparação visual documentada e contrato testado.
 
 ### Fase 3 — Núcleo Rust e fluxo vertical
-1. Inspecionar os pontos de extensão do runtime sem remover fluxos existentes.
-2. Comparar serviço local, JNI e UniFFI para a fronteira Kotlin–Rust.
-3. Implementar uma solicitação de ponta a ponta e validar cancelamento, timeout, erros e isolamento.
+1. Inspecionar pontos de entrada do runtime sem remover fluxos existentes.
+2. Comparar JNI/UniFFI com um processo ACP/headless separado.
+3. Implementar uma chamada de ponta a ponta e validar cancelamento, timeout, erros e isolamento.
 
-**Portão:** compilação e testes reproduzíveis, com logs sem segredos.
+**Portão:** build e testes reproduzíveis; nenhuma credencial nos logs; runtime integrado comprovadamente na UI.
 
 ### Fase 4 — Memória e segurança
-1. Ampliar SQLite com migrações, memória opt-in, consulta/edição/exportação/exclusão.
-2. Avaliar Android Keystore para segredos e proteção adequada dos dados.
-3. Adicionar políticas de permissões e auditoria independente da saída do modelo.
+1. Persistir preferências explícitas em SQLite, com migrações e ações de adicionar, remover e excluir tudo. **Inicial já implementado.**
+2. Cifrar as memórias com Android Keystore e migrar dados antigos sem deixar cópia em texto claro. **Implementação adicionada; CI e teste de aparelho pendentes.**
+3. Adicionar exportação, recuperação, política de retenção e preferências persistentes.
+4. Só incluir memória nos prompts após definir escopo, consentimento, prévia do envio e exclusão.
 
-**Portão:** persistência, recuperação, exportação e bloqueio de ações não autorizadas testados.
+**Portão:** persistência, migração, cifra, exportação e exclusão validadas em testes.
 
 ### Fase 5 — IA híbrida, voz e ferramentas
-1. A camada opcional de chat compatível com OpenAI foi iniciada em Kotlin, com URL HTTPS e modelo configuráveis.
-2. Validar o endpoint real e o tratamento de erros; não presumir que o provedor oferece uso gratuito.
-3. Mapear os pontos de entrada de `xai-grok-shell` e comparar JNI/UniFFI com ACP/headless antes de escolher a integração Rust–Android.
-4. Avaliar inferência local de forma separada; nenhum peso de modelo foi empacotado.
-5. Integrar voz e ferramentas Android de forma gradual, por permissões mínimas.
+1. A camada opcional de chat HTTP é inicial; não substitui a integração Kotlin–Rust nem um modelo local.
+2. Validar um endpoint remoto escolhido pelo usuário; não assumir custo zero permanente.
+3. Avaliar inferência local separadamente, sem empacotar pesos sem escolha explícita de modelo e orçamento de armazenamento.
+4. Integrar voz, ferramentas Android e roteamento gradual, por permissões mínimas.
 
-**Portão:** CI verde, chamada remota verificada pelo usuário, falhas de rede e limites tratados, e comportamento offline demonstrado.
+**Portão:** CI verde, provedor verificado, falhas de rede e limites tratados, comportamento offline demonstrado.
 
 ### Fase 6 — Robustez e release controlado
-1. Regressão, acessibilidade, bateria, memória, atualização, backup e restauração.
-2. Instalar e testar no POCO X5 Pro, além de validar telas menores/maiores.
+1. Regressão, acessibilidade, bateria, uso de memória, atualização e restauração.
+2. Instalar e testar no POCO X5 Pro e validar outras dimensões/tamanhos de tela.
 3. Preparar APK, instruções, versão e estratégia de reversão.
 
-**Portão:** aprovação do checklist de qualidade. Publicação externa exige autorização específica.
-
-## Critérios de conclusão de cada etapa
-
-- Diff pequeno e revisável.
-- Testes executados com resultados registrados; testes não executados devem ser declarados.
-- Nenhum segredo adicionado aos commits.
-- Nenhuma publicação em produção sem autorização separada.
-- Licenças e avisos de terceiros preservados.
-- Interface declarada como fiel ao Figma apenas após comparação verificável.
+**Portão:** checklist de qualidade aprovado. Publicação externa exige autorização específica.
 
 ## Custos e dependências
 
-O núcleo deve funcionar sem serviço próprio obrigatório. Provedores, sincronização e recursos remotos serão opcionais, com custos/limites documentados. A pesquisa via Exa pode apoiar desenvolvimento e extração web, mas não substitui o runtime do assistente nem constitui automaticamente automação universal de navegador.
+A base local não exige serviço próprio obrigatório. Provedores remotos, sincronização e outros recursos conectados são opcionais, com custos e limites dependentes do serviço escolhido. Um cliente compatível com uma API não torna o provedor gratuito nem significa que existe inferência local.
 
 ## Próxima ação
 
-Confirmar build e testes da nova camada de provedor por CI. Depois, validar um endpoint escolhido pelo usuário sem incluir credenciais no GitHub, e continuar o mapeamento técnico do runtime Rust para definir uma integração móvel segura. Não tratar planejamento ou arquivos criados como prova de que o produto completo está implementado.
+Confirmar o CI das mudanças de memória cifrada; depois, testar um provedor escolhido pelo usuário sem expor chaves e definir a fronteira segura de integração Kotlin–Rust.
