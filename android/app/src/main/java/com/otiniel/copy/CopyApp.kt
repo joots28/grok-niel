@@ -60,6 +60,7 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
     var input by rememberSaveable { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var clearDialog by remember { mutableStateOf(false) }
+    var clearMemoryDialog by remember { mutableStateOf(false) }
     var offline by rememberSaveable { mutableStateOf(false) }
     var memoryEnabled by rememberSaveable { mutableStateOf(true) }
     var syncEnabled by rememberSaveable { mutableStateOf(false) }
@@ -185,6 +186,32 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                 }) { Text("Apagar", color = CopyCyan) }
             },
             dismissButton = { TextButton(onClick = { clearDialog = false }) { Text("Cancelar") } },
+            containerColor = CopySurface,
+            titleContentColor = CopyText,
+            textContentColor = CopyMuted
+        )
+    }
+
+    if (clearMemoryDialog) {
+        AlertDialog(
+            onDismissRequest = { clearMemoryDialog = false },
+            title = { Text("Apagar todas as memórias?") },
+            text = { Text("Essa ação remove as memórias pessoais salvas neste aparelho. O histórico de conversas não será apagado.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    clearMemoryDialog = false
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { database.clearMemories() }
+                            memories.clear()
+                            memoryNotice = "Todas as memórias foram removidas deste aparelho."
+                        } catch (_: Exception) {
+                            memoryNotice = "Não foi possível apagar as memórias."
+                        }
+                    }
+                }) { Text("Apagar tudo", color = CopyCyan) }
+            },
+            dismissButton = { TextButton(onClick = { clearMemoryDialog = false }) { Text("Cancelar") } },
             containerColor = CopySurface,
             titleContentColor = CopyText,
             textContentColor = CopyMuted
@@ -457,7 +484,14 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                 Spacer(Modifier.height(18.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text("MEMÓRIAS SALVAS", color = CopyMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
-                                    Text(memories.size.toString().padStart(2, '0'), color = CopyCyan, fontSize = 11.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(memories.size.toString().padStart(2, '0'), color = CopyCyan, fontSize = 11.sp)
+                                        if (memories.isNotEmpty()) {
+                                            TextButton(onClick = { clearMemoryDialog = true }) {
+                                                Text("Apagar tudo", color = CopyMuted, fontSize = 10.sp)
+                                            }
+                                        }
+                                    }
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 if (memories.isEmpty()) {
