@@ -28,16 +28,7 @@ class CopyDatabase(context: Context) :
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE messages (
-                _id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
-                content TEXT NOT NULL,
-                created_at INTEGER NOT NULL
-            )
-            """.trimIndent()
-        )
+        createMessagesTable(db)
         createMemoriesTable(db)
     }
 
@@ -45,6 +36,60 @@ class CopyDatabase(context: Context) :
         if (oldVersion < 2) createMemoriesTable(db)
         if (oldVersion == 2) migrateMemoriesToEncryptedStorage(db, existingContentIsEncrypted = false)
         if (oldVersion == 3) migrateMemoriesToEncryptedStorage(db, existingContentIsEncrypted = true)
+        if (oldVersion < 5) migrateMessagesToEncryptedStorage(db)
+    }
+
+    private fun createMessagesTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                _id INTEGER PRIMARY KEY AUTOINCREMENT,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+
+    /**
+     * Encrypts the previous plaintext transcript in a transaction-backed schema migration,
+     * preserving message IDs, roles, timestamps and ordering.
+     */
+    private fun migrateMessagesToEncryptedStorage(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE messages RENAME TO messages_plaintext_v4")
+        createMessagesTable(db)
+
+        val oldMessages = mutableListOf<ChatMessage>()
+        db.query(
+            "messages_plaintext_v4",
+            arrayOf(COLUMN_ID, COLUMN_ROLE, COLUMN_CONTENT, COLUMN_CREATED_AT),
+            null, null, null, null, "$COLUMN_ID ASC"
+        ).use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(COLUMN_ID)
+            val roleIndex = cursor.getColumnIndexOrThrow(COLUMN_ROLE)
+            val contentIndex = cursor.getColumnIndexOrThrow(COLUMN_CONTENT)
+            val timeIndex = cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)
+            while (cursor.moveToNext()) {
+                oldMessages += ChatMessage(
+                    id = cursor.getLong(idIndex),
+                    role = cursor.getString(roleIndex),
+                    content = cursor.getString(contentIndex),
+                    createdAt = cursor.getLong(timeIndex)
+                )
+            }
+        }
+
+        oldMessages.forEach { message ->
+            val values = ContentValues().apply {
+                put(COLUMN_ID, message.id)
+                put(COLUMN_ROLE, message.role)
+                put(COLUMN_CONTENT, LocalChatCrypto.encrypt(message.content))
+                put(COLUMN_CREATED_AT, message.createdAt)
+            }
+            db.insertOrThrow(TABLE_MESSAGES, null, values)
+        }
+        db.execSQL("DROP TABLE messages_plaintext_v4")
     }
 
     private fun createMemoriesTable(db: SQLiteDatabase) {
@@ -111,7 +156,7 @@ class CopyDatabase(context: Context) :
                 result += ChatMessage(
                     id = cursor.getLong(idIndex),
                     role = cursor.getString(roleIndex),
-                    content = cursor.getString(contentIndex),
+                    content = LocalChatCrypto.decrypt(cursor.getString(contentIndex)),
                     createdAt = cursor.getLong(timeIndex)
                 )
             }
@@ -122,7 +167,7 @@ class CopyDatabase(context: Context) :
     fun insertMessage(message: ChatMessage): ChatMessage {
         val values = ContentValues().apply {
             put(COLUMN_ROLE, message.role)
-            put(COLUMN_CONTENT, message.content)
+            put(COLUMN_CONTENT, LocalChatCrypto.encrypt(message.content))
             put(COLUMN_CREATED_AT, message.createdAt)
         }
         val id = writableDatabase.insertOrThrow(TABLE_MESSAGES, null, values)
@@ -180,7 +225,7 @@ class CopyDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "copy_local.db"
-        private const val DATABASE_VERSION = 4
+        private const val DATABASE_VERSION = 5
         private const val TABLE_MESSAGES = "messages"
         private const val TABLE_MEMORIES = "personal_memories"
         private const val COLUMN_ID = "_id"
