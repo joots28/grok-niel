@@ -6,6 +6,17 @@ import org.junit.Test
 
 class ProviderChatClientTest {
     @Test
+    fun appliesConciseAndDetailedResponseStyles() {
+        val concise = ProviderChatClient.buildSystemPrompt(emptyList(), "Conciso")
+        val detailed = ProviderChatClient.buildSystemPrompt(emptyList(), "Detalhado")
+        val balanced = ProviderChatClient.buildSystemPrompt(emptyList(), "Equilibrado")
+
+        assertTrue(concise.contains("respostas curtas, diretas"))
+        assertTrue(detailed.contains("apresente etapas"))
+        assertTrue(balanced.contains("Equilibre clareza"))
+    }
+
+    @Test
     fun doesNotIncludeMemoryContextByDefault() {
         val prompt = ProviderChatClient.buildSystemPrompt(emptyList())
 
