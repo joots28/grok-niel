@@ -1,31 +1,44 @@
 # Copy — status de implementação
 
-Atualizado em 2026-10-25.
+Atualizado em 2026-10-27.
 
-## Confirmado
+## Implementado na branch `copy-foundation`
 
-- O repositório base é um workspace Rust grande, originalmente voltado a um agente de terminal.
-- A branch de trabalho é copy-foundation; a branch principal não foi alterada.
-- A primeira fundação Android foi adicionada em android/ usando Kotlin e Jetpack Compose.
-- O aplicativo tem interface provisória de conversa, persistência SQLite, comandos offline limitados, entrada de voz via serviço do Android e leitura opcional via TextToSpeech.
-- Foi adicionado um workflow para executar testes unitários e montar o APK de debug.
+- A fundação Android está em `android/`, com Kotlin e Jetpack Compose.
+- O histórico de conversa é persistido em SQLite; os comandos locais atendem apenas ajuda, hora e data.
+- Há entrada de fala pelo serviço disponível no Android e leitura de resposta por TextToSpeech.
+- Foi adicionado um cliente opcional de chat para endpoints HTTPS compatíveis com OpenAI.
+- A chave do provedor é cifrada com AES-GCM usando uma chave protegida pelo Android Keystore; ela não é armazenada em texto puro nas preferências.
+- A IA externa fica desabilitada por padrão. Com a ativação explícita, a mensagem atual e até 15 mensagens anteriores podem ser enviadas ao endpoint configurado.
+- O cliente aplica timeout, limita o corpo da resposta, desativa redirecionamentos e não registra a chave em logs.
+- Foram adicionados testes de validação de URL/modelo e um workflow de CI para teste e criação do APK de debug.
+- A interface React/TSX exportada do Figma está preservada em um backup local PDF/ZIP; a confirmação do PDF dentro do repositório depende do workflow de montagem.
 
-## Ainda não confirmado
+## Validação pendente desta alteração
 
-- O build não foi executado localmente nesta sessão. O resultado do CI precisa ser consultado antes de declarar a compilação validada.
-- A interface ainda não foi comparada com o Figma específico do Copy; não declarar correspondência visual exata.
-- A camada de IA Rust não está conectada à interface Android.
-- Não existe integração Kotlin–Rust nem contrato de API local implementados.
-- Não existe ainda inferência local, roteamento de provedores, memória de longo prazo, cofre de credenciais ou integração ampla com Android.
-- Segurança, consumo de bateria, acessibilidade, compatibilidade e uso contínuo precisam de testes em aparelho real.
+- A implementação do provedor acabou de ser enviada à branch. Os resultados do workflow de CI desses novos commits ainda devem ser consultados antes de declarar os testes aprovados.
+- Não foi feita compilação Android local nesta sessão nem instalação física no POCO X5 Pro.
+- O endpoint remoto real não foi testado porque não há uma configuração e uma chave fornecidas pelo usuário.
+- Testar chamadas com autenticação inválida, limite de uso, timeouts e indisponibilidade do provedor.
+- Testar a limpeza do segredo, restauração de estado e persistência após reiniciar o aplicativo.
 
-## Próxima sequência técnica
+## Ainda não implementado
 
-1. Confirmar o build e os testes pelo CI.
-2. Identificar a referência exata do Figma do Copy e alinhar a interface sem redesenhá-la por conta própria.
-3. Mapear a fronteira de API do runtime Rust e validar comunicação Kotlin–Rust.
-4. Implementar uma solicitação real de ponta a ponta com cancelamento, timeout e tratamento de erros.
-5. Adicionar memória local controlável e migrações, depois os provedores opcionais.
-6. Validar microfone, TextToSpeech, ciclo de vida, bateria e acessibilidade no Android real.
+- Integração Kotlin–Rust: o crate `xai-grok-shell` é um runtime de agente de terminal com dependências amplas; ele não pode ser considerado um motor Android integrado apenas por existir no repositório.
+- Inferência local e pesos de modelo no aparelho.
+- Roteador inteligente entre modelos local e remoto.
+- Memória pessoal persistente e controlável separada do histórico.
+- Cofre para outras credenciais, sincronização segura, ferramentas Android, automações e auditoria de ações.
+- Correspondência visual verificada com o Figma específico do Copy.
+- Testes completos de acessibilidade, bateria, compatibilidade e uso contínuo em aparelho real.
 
-A criação de arquivos e a conclusão de planejamento não significam que o produto esteja pronto para uso contínuo ou distribuição.
+## Próximas etapas técnicas
+
+1. Confirmar build e testes do provedor opcional pelo CI e corrigir falhas reais.
+2. Validar a chamada com um endpoint compatível escolhido pelo usuário, sem incluir segredos no repositório.
+3. Definir o contrato versionado da interface de runtime antes de acoplar o Android ao núcleo Rust.
+4. Avaliar separadamente JNI/UniFFI e um processo ACP/headless; não importar o TUI inteiro sem validar dependências e tamanho.
+5. Implementar memória pessoal com migrações, opt-in, edição, exportação e exclusão.
+6. Comparar a interface Android com a referência Figma e testar no dispositivo real.
+
+A compilação, a existência de código ou uma resposta de provedor não significam que o produto inteiro esteja pronto para uso contínuo ou distribuição.
