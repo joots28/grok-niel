@@ -2,40 +2,48 @@
 
 Aplicativo Android nativo em Kotlin + Jetpack Compose. A interface é separada do runtime Rust do Grok Build porque o runtime original foi criado para um agente de terminal; a compatibilidade móvel precisa ser implementada e testada separadamente.
 
-## Implementado na fundação
+## O que já existe
 
-- Interface Android com tema escuro e identidade Copy.
-- Histórico de conversa persistido localmente em SQLite.
+- Interface de conversa nativa com tema escuro.
+- Histórico de chat persistido localmente em SQLite.
 - Comandos offline limitados para ajuda, hora e data.
-- Reconhecimento de fala via serviço disponível no Android e resposta falada via TextToSpeech.
-- Limpeza explícita do histórico local.
-- Cliente opcional para APIs de chat compatíveis com OpenAI.
-- Chave de API cifrada com AES-GCM; chave de cifragem protegida pelo Android Keystore.
-- Validação de URL HTTPS, timeouts, limite de resposta, mensagens de erro controladas e redirecionamentos HTTP desativados.
-- Testes unitários para validação da configuração do provedor.
-- Workflow de CI para executar testes e montar o APK de debug.
+- Entrada de voz via serviço disponível no Android e leitura em voz alta via TextToSpeech.
+- Camada de chat remota opcional, compatível com endpoints HTTPS de OpenAI Chat Completions.
+- URL base e identificador do modelo configuráveis no app; provedor externo fica desativado por padrão.
+- Chave de API criptografada com AES-GCM e chave protegida pelo Android Keystore.
+- Mensagens persistidas localmente; chave da API nunca é incluída no histórico ou nos logs.
+- Memória pessoal persistente em SQLite, com itens adicionáveis/removíveis e opção de apagar tudo com confirmação.
+- Conteúdo da memória cifrado em repouso por AES-GCM com chave separada no Android Keystore. O banco usa uma migração explícita do esquema anterior.
+- Testes unitários para validação da configuração do provedor e workflow de CI para testes/APK de debug.
 
-## Configuração de IA externa (opcional)
+## Configurar IA remota opcional
 
-1. Abra **Configurações** no app.
-2. Informe a URL base HTTPS, o identificador exato do modelo e a chave fornecida pelo seu provedor.
-3. Salve a configuração. O campo da chave é mascarado e fica vazio depois de salvar.
-4. Ative **Usar IA externa** somente depois de verificar os termos, a privacidade e os possíveis custos do serviço.
+1. Abra **Configurações**.
+2. Informe a URL base HTTPS, o identificador exato do modelo e a chave fornecida pelo provedor.
+3. Salve a configuração.
+4. Ative **Usar IA externa** somente após conferir privacidade, condições e possíveis custos do serviço.
 
-O provedor fica desativado por padrão. Sem ativação explícita, o Copy usa apenas os comandos locais limitados. Quando ativado, o app envia a mensagem atual e até 15 mensagens anteriores ao endpoint configurado. O endpoint precisa implementar o formato `POST /chat/completions` compatível com a API de chat da OpenAI. A disponibilidade, os limites e a cobrança dependem do provedor escolhido.
+Quando a IA externa é ativada, a mensagem atual e até 15 mensagens anteriores podem ser enviadas ao endpoint configurado. O provedor precisa implementar o formato `POST /chat/completions` compatível com OpenAI Chat Completions. Disponibilidade, limites e cobrança dependem do provedor escolhido. O app não faz fallback silencioso para outro serviço caso a solicitação falhe.
 
-A configuração pode ser removida pela própria tela. Não coloque chaves no código, no GitHub, em logs ou em capturas de tela. A chave é protegida em repouso pelo Android Keystore, mas o aparelho e o provedor ainda precisam ser tratados como partes sensíveis do fluxo.
+A chave fica mascarada no campo e o valor em memória da interface é limpo após salvar. O campo vazio permite conservar a chave que já está armazenada. A configuração pode ser removida na própria tela. Nunca coloque chaves no código, no GitHub, em logs ou em capturas de tela.
 
-## Limitações atuais
+## Memória pessoal
 
-- O runtime Rust original **ainda não está integrado** ao app Android; este cliente HTTP opcional é uma fronteira separada para inferência remota.
+As memórias são escritas apenas quando o usuário as registra. Permanecem no banco local, cifradas com uma chave mantida pelo Android Keystore, sem sincronização automática. É possível remover um item ou apagar todos com confirmação.
+
+Por enquanto, as memórias **não são anexadas automaticamente ao contexto da IA**. Desativar a área de memória esconde os itens, mas não apaga o conteúdo salvo. Não há backend de sincronização conectado.
+
+## Limitações importantes
+
+- O runtime Rust original **ainda não está conectado** à interface Android; o cliente HTTP opcional é uma camada separada para inferência remota.
 - Não há modelo local nem pesos de modelo incluídos no APK.
+- A API de provedor pode ter custo; essa integração não promete uso gratuito.
 - O app ainda não executa ferramentas, automações ou comandos de sistema gerados pela IA.
-- O histórico local é salvo em SQLite, mas a memória semântica/pessoal controlável ainda não foi implementada.
-- O reconhecimento de fala depende do serviço disponível no Android; a preferência por offline não garante suporte offline.
-- A tela nativa ainda precisa ser comparada com a referência exata do Figma do Copy.
-- Calendário, notificações, arquivos, câmera e outros aplicativos ainda não estão integrados.
-- Um build de CI bem-sucedido não equivale a teste no POCO X5 Pro ou a uma versão pronta para distribuição.
+- As memórias não são usadas automaticamente pelo modelo.
+- Reconhecimento de fala depende do serviço disponível no Android; a preferência por offline não garante reconhecimento sem rede.
+- A interface nativa ainda precisa ser comparada com a referência exata do Figma do Copy.
+- Calendário, notificações, arquivos, câmera e outros aplicativos não estão integrados.
+- Um build de CI bem-sucedido não substitui teste no POCO X5 Pro e não equivale a uma versão pronta para distribuição.
 
 ## Compilar e testar
 
@@ -45,4 +53,4 @@ Requisitos: JDK 17, Android SDK Platform 36 e Gradle 9.6.0.
 gradle -p android testDebugUnitTest assembleDebug
 ```
 
-O APK de debug é gerado em `android/app/build/outputs/apk/debug/app-debug.apk`. Nenhuma chave de API é necessária para compilar ou executar os comandos locais.
+O APK de debug é gerado em `android/app/build/outputs/apk/debug/app-debug.apk`. Nenhuma chave de API é necessária para compilar ou usar os comandos locais.
