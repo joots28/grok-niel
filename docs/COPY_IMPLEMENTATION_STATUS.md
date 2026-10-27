@@ -4,39 +4,38 @@ Atualizado em 2026-10-27.
 
 ## Implementado na branch `copy-foundation`
 
-- Fundação Android nativa em Kotlin + Jetpack Compose, com histórico local em SQLite, comandos locais limitados, reconhecimento de fala via serviço Android e TextToSpeech.
+- Aplicação Android nativa em Kotlin + Jetpack Compose, histórico local em SQLite, comandos offline limitados, reconhecimento de fala via serviço Android e TextToSpeech.
 - Camada opcional de chat remoto para endpoints HTTPS compatíveis com OpenAI Chat Completions; desativada por padrão.
-- Chave do provedor criptografada com AES-GCM, com chave guardada no Android Keystore; URL e identificador do modelo configuráveis pela tela.
-- O cliente remoto aplica timeouts, limita o tamanho da resposta, desativa redirecionamentos e evita registrar a chave.
-- A memória pessoal passou de exemplos em sessão para itens gravados em SQLite, com adicionar/remover individualmente e apagar tudo mediante confirmação.
-- O conteúdo das memórias é criptografado com AES-GCM e uma chave própria no Android Keystore. Há migração do schema anterior, que gravava texto sem criptografia.
-- Memórias ficam apenas neste dispositivo; sincronização não está conectada. Elas ainda não são anexadas automaticamente ao prompt de IA.
-- Testes unitários cobrem validação de URL e modelo. O workflow CI já passou para a camada de provedor antes das mudanças de memória; a validação final das mudanças de memória ainda está em execução.
+- A URL, o identificador do modelo e a chave do provedor são configuráveis no app. A chave é criptografada com AES-GCM e protegida pelo Android Keystore.
+- O cliente remoto aplica timeouts, limita mensagens e respostas, desativa redirecionamentos e evita registrar a chave em logs.
+- Memória pessoal persistente em SQLite, com itens adicionáveis/removíveis e opção de apagar tudo mediante confirmação.
+- Conteúdo das memórias criptografado em repouso com uma chave separada no Android Keystore; a base foi migrada do esquema anterior e o SQLite está configurado para secure delete.
+- Nenhuma sincronização é feita. As memórias ficam no aparelho por padrão e só são incluídas no contexto remoto após ativação do provedor e confirmação de consentimento separada. O usuário pode desligar essa permissão.
+- Os pedidos incluem no máximo 12 memórias e 4.000 caracteres de contexto. Memórias não acionam ferramentas ou ações no dispositivo.
+- Testes unitários de validação de URL/modelo e montagem do APK de debug passaram no workflow Android do commit `69684bdf` (27/10/2026).
 
-## Validação pendente
+## Validação ainda pendente
 
-- Confirmar o resultado final do workflow Android depois das alterações de memória e verificar que teste e APK de debug passaram juntos.
-- Instalar e testar no POCO X5 Pro; o CI não substitui teste físico.
-- Configurar e testar um endpoint real escolhido pelo usuário, sem colocar a chave no GitHub.
-- Testar migração da base SQLite real, restauração após reiniciar e comportamento quando uma chave do Android Keystore não puder ser usada.
-- Comparar a interface nativa com a referência exata do Figma; a correspondência visual ainda não foi confirmada.
+- Instalar e testar no POCO X5 Pro; build verde não substitui teste físico.
+- Configurar e testar um endpoint real escolhido pelo usuário, sem enviar a chave ao GitHub.
+- Testar migração SQLite com dados existentes e comportamento em aparelho quando uma chave do Android Keystore não puder ser usada.
+- Comparar a interface Android com a referência exata do Figma; a correspondência visual ainda não foi confirmada.
+- Testes completos de acessibilidade, bateria, compatibilidade, exportação/restauração de memórias e uso contínuo.
 
 ## Ainda não implementado
 
-- Integração Kotlin–Rust. O crate `xai-grok-shell` continua sendo um runtime de agente de terminal com ampla árvore de dependências, não uma biblioteca Android integrada.
+- Integração Kotlin–Rust. O crate `xai-grok-shell` continua sendo um runtime de agente de terminal com uma árvore ampla de dependências, não uma biblioteca Android integrada.
 - Inferência local e pesos de modelo incluídos no APK.
 - Roteador híbrido automático entre modelo local e provedores remotos.
-- Inclusão contextual das memórias nos prompts, com controle explícito e apresentação clara do que será enviado a um provedor externo.
-- Ferramentas Android, automações, sincronização segura e auditoria das ações do assistente.
-- Testes completos de acessibilidade, bateria, compatibilidade e uso contínuo em aparelho real.
+- Ferramentas Android, automações, sincronização segura, auditoria de ações e execução de comandos gerados pelo modelo.
 
 ## Próximas etapas técnicas
 
-1. Confirmar CI de memória e corrigir eventuais falhas antes de ampliar a implementação.
-2. Validar um endpoint remoto selecionado pelo usuário, com credenciais apenas no dispositivo.
-3. Definir e testar um contrato versionado de runtime antes de conectar a UI ao núcleo Rust.
-4. Avaliar separadamente JNI/UniFFI e o modo ACP/headless; não importar a TUI inteira sem validar dependências e tamanho.
-5. Integrar o uso de memória ao assistente apenas depois de definir consentimento, exclusão, escopo e quais memórias podem sair do dispositivo.
-6. Comparar a UI Android com o Figma aprovado e testar no aparelho real.
+1. Testar o APK em aparelho real e testar um provedor configurado pelo usuário.
+2. Definir um contrato versionado de runtime antes de conectar a interface ao núcleo Rust.
+3. Avaliar JNI/UniFFI e ACP/headless separadamente; não importar a TUI inteira sem validar dependências e tamanho.
+4. Desenvolver uma opção de inferência local sem pressupor custo zero nem empacotar pesos sem escolha explícita de modelo.
+5. Só ampliar o envio de memória para fora do aparelho com consentimento explícito, prévia de escopo e exclusão fácil.
+6. Comparar a UI Android com o Figma aprovado.
 
 Compilação, planejamento ou código criado não significam que o produto completo esteja pronto para uso contínuo ou distribuição.
