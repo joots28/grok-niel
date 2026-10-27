@@ -5,7 +5,7 @@ Branch: `copy-foundation`
 
 ## Integration update
 
-The first JNI bridge is implemented under `android/rust-core/`, isolated from the large desktop Cargo workspace. The shared library exports a stable classifier function consumed by `CopyRustBridge.kt`. The Android build workflow now tests the Rust crate, builds native libraries for Android `arm64-v8a` and `x86_64`, and packages them into the debug APK. The app UI reports whether the native library loaded; when absent, it explicitly reports the Kotlin fallback.
+The first JNI bridge is implemented under `android/rust-core/`, isolated from the large desktop Cargo workspace. The shared library exports a stable local reply function consumed by `CopyRustBridge.kt`. Rust produces the local response text for implemented deterministic commands, using device-local time/date strings from Android. The Android build workflow tests the Rust crate, builds native libraries for Android `arm64-v8a` and `x86_64`, and packages them into the debug APK. The app UI reports whether the native response engine is available; when absent, it explicitly reports the Kotlin fallback.
 
 ## Confirmed source boundaries
 

@@ -1,8 +1,8 @@
 package com.otiniel.copy
 
 /**
- * Optional JNI boundary to the Rust core. The Kotlin fallback remains available
- * for local IDE builds that have not generated the native libraries yet.
+ * JNI boundary to the Rust local response engine. The Kotlin fallback remains
+ * available for IDE builds that have not generated native libraries yet.
  */
 object CopyRustBridge {
     private val libraryLoaded: Boolean by lazy {
@@ -16,16 +16,16 @@ object CopyRustBridge {
         }
     }
 
-    fun isAvailable(): Boolean = classify("") == "empty"
+    fun isAvailable(): Boolean = reply("", "", "") == "Escreva uma mensagem para começar."
 
-    fun classify(input: String): String? {
+    fun reply(input: String, currentTime: String, currentDate: String): String? {
         if (!libraryLoaded) return null
         return try {
-            nativeClassify(input)
+            nativeReply(input, currentTime, currentDate)
         } catch (_: LinkageError) {
             null
         }
     }
 
-    private external fun nativeClassify(input: String): String
+    private external fun nativeReply(input: String, currentTime: String, currentDate: String): String
 }
