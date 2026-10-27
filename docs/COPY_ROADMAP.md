@@ -2,13 +2,15 @@
 
 Copy é o assistente pessoal Android-first, com núcleo local e conectado, memória controlável e ferramentas autorizadas. Este documento separa capacidades existentes na base de funcionalidades que ainda precisam ser implementadas ou validadas.
 
-## Estado atual — 25 de outubro de 2026
+## Estado atual — 27 de outubro de 2026
 
 - Repositório: `joots28/grok-niel`; branch de trabalho: `copy-foundation`.
 - Foi adicionada uma primeira fundação Android independente em `android/`, usando Kotlin e Jetpack Compose.
 - A fundação contém interface de conversa provisória, histórico SQLite local, comandos limitados de hora/data/ajuda, captura de fala por serviço disponível no Android e leitura em voz alta por TextToSpeech.
 - Foram adicionados testes unitários dos comandos locais e um workflow de CI para executar testes e montar o APK de debug.
 - O núcleo Rust ainda é um agente de terminal; não há integração Kotlin–Rust nem motor de IA conectado à tela.
+- A tela Android agora possui uma camada opcional para provedores HTTPS compatíveis com OpenAI Chat Completions; a ativação é explícita e desativada por padrão, e a chave é cifrada pelo Android Keystore.
+- Essa camada remota não é a integração do runtime Rust. Não foram incluídos pesos de modelo nem inferência local no APK; o provedor escolhido pode ter limites ou custos.
 - A interface não foi comparada com o Figma específico do Copy; não se afirma correspondência visual exata.
 - Build, testes automatizados e instalação no POCO X5 Pro ainda precisam de resultados observados antes de marcar a fase como validada.
 
@@ -69,11 +71,13 @@ Copy é o assistente pessoal Android-first, com núcleo local e conectado, memó
 **Portão:** persistência, recuperação, exportação e bloqueio de ações não autorizadas testados.
 
 ### Fase 5 — IA híbrida, voz e ferramentas
-1. Introduzir interfaces independentes de provedores e seleção configurável.
-2. Avaliar modelo local e serviço de nuvem opcional; não assumir gratuidade permanente.
-3. Integrar voz e ferramentas Android de forma gradual, por permissões mínimas.
+1. A camada opcional de chat compatível com OpenAI foi iniciada em Kotlin, com URL HTTPS e modelo configuráveis.
+2. Validar o endpoint real e o tratamento de erros; não presumir que o provedor oferece uso gratuito.
+3. Mapear os pontos de entrada de `xai-grok-shell` e comparar JNI/UniFFI com ACP/headless antes de escolher a integração Rust–Android.
+4. Avaliar inferência local de forma separada; nenhum peso de modelo foi empacotado.
+5. Integrar voz e ferramentas Android de forma gradual, por permissões mínimas.
 
-**Portão:** falhas de rede, limites, privacidade e comportamento offline demonstrados.
+**Portão:** CI verde, chamada remota verificada pelo usuário, falhas de rede e limites tratados, e comportamento offline demonstrado.
 
 ### Fase 6 — Robustez e release controlado
 1. Regressão, acessibilidade, bateria, memória, atualização, backup e restauração.
@@ -97,4 +101,4 @@ O núcleo deve funcionar sem serviço próprio obrigatório. Provedores, sincron
 
 ## Próxima ação
 
-Validar o workflow de build/teste da fundação Android. Em paralelo, identificar o Figma correto do Copy e mapear o crate de runtime para escolher uma fronteira segura de integração Kotlin–Rust. Não tratar planejamento ou arquivos criados como prova de que o produto completo está implementado.
+Confirmar build e testes da nova camada de provedor por CI. Depois, validar um endpoint escolhido pelo usuário sem incluir credenciais no GitHub, e continuar o mapeamento técnico do runtime Rust para definir uma integração móvel segura. Não tratar planejamento ou arquivos criados como prova de que o produto completo está implementado.
