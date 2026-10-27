@@ -748,7 +748,13 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             Spacer(Modifier.height(8.dp))
                             SettingRow("Preferir operação local", "Ignora o provedor externo enquanto estiver ativado", offline) { offline = it }
                             Spacer(Modifier.height(8.dp))
-                            SettingRow("Memória habilitada", "Controla a visualização e o uso das memórias nesta sessão", memoryEnabled) { memoryEnabled = it }
+                            SettingRow("Memória habilitada", "Controla a visualização e o uso das memórias nesta sessão", memoryEnabled) {
+                                memoryEnabled = it
+                                if (!it) {
+                                    shareMemoryWithProvider = false
+                                    providerNotice = "Memória desativada; o contexto pessoal não será enviado ao provedor."
+                                }
+                            }
                             Spacer(Modifier.height(8.dp))
                             SettingRow("Sincronização opcional", "Nenhum backend de sincronização conectado", syncEnabled) { syncEnabled = it }
                             Spacer(Modifier.height(18.dp))
