@@ -21,6 +21,12 @@ data class PersonalMemory(
 class CopyDatabase(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
+    override fun onConfigure(db: SQLiteDatabase) {
+        super.onConfigure(db)
+        // Ask SQLite to overwrite deleted cell content rather than leave it in free pages.
+        db.execSQL("PRAGMA secure_delete = ON")
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
