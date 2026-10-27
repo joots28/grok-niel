@@ -1,49 +1,49 @@
 # Copy Android
 
-Aplicativo Android nativo em Kotlin + Jetpack Compose. A interface é separada do runtime Rust do Grok Build porque o runtime original foi criado para um agente de terminal; a compatibilidade móvel precisa ser implementada e testada separadamente.
+Aplicativo Android nativo em Kotlin + Jetpack Compose. A interface é separada do runtime Rust do Grok Build, que é um agente de terminal; a compatibilidade móvel ainda precisa ser implementada separadamente.
 
 ## O que já existe
 
 - Interface de conversa nativa com tema escuro.
-- Histórico de chat persistido localmente em SQLite.
-- Comandos offline limitados para ajuda, hora e data.
-- Entrada de voz via serviço disponível no Android e leitura em voz alta via TextToSpeech.
-- Camada de chat remota opcional, compatível com endpoints HTTPS de OpenAI Chat Completions.
-- URL base e identificador do modelo configuráveis no app; provedor externo fica desativado por padrão.
-- Chave de API criptografada com AES-GCM e chave protegida pelo Android Keystore.
-- Mensagens persistidas localmente; chave da API nunca é incluída no histórico ou nos logs.
-- Memória pessoal persistente em SQLite, com itens adicionáveis/removíveis e opção de apagar tudo com confirmação.
-- Conteúdo da memória cifrado em repouso por AES-GCM com chave separada no Android Keystore. O banco usa uma migração explícita do esquema anterior.
-- Testes unitários para validação da configuração do provedor e workflow de CI para testes/APK de debug.
+- Histórico local em SQLite. O conteúdo das mensagens é criptografado em repouso com AES-GCM e uma chave guardada pelo Android Keystore.
+- Migração do histórico antigo em texto para o esquema criptografado atual (banco versão 5); o fluxo precisa ser validado em aparelho real com dados de versões anteriores.
+- Comandos locais limitados para ajuda, hora e data.
+- Entrada de voz pelo serviço disponível no Android e saída falada via TextToSpeech.
+- Cliente remoto opcional compatível com endpoints HTTPS de OpenAI Chat Completions. O provedor é desativado por padrão.
+- URL base, identificador do modelo e chave configuráveis no app. A chave é criptografada com AES-GCM e protegida pelo Android Keystore.
+- Memória pessoal persistente e criptografada em SQLite, com inclusão, remoção individual e exclusão total mediante confirmação.
+- Memórias não são enviadas por padrão. A inclusão em pedidos remotos exige uma confirmação separada, tem limite de 12 itens / 4.000 caracteres e pode ser revogada.
+- Estilos Conciso, Equilibrado e Detalhado são aplicados às respostas remotas; no modo local os comandos continuam predefinidos.
+- CI de Android passa no commit `8b36deee`: testes unitários e criação do APK de debug concluídos.
 
 ## Configurar IA remota opcional
 
 1. Abra **Configurações**.
 2. Informe a URL base HTTPS, o identificador exato do modelo e a chave fornecida pelo provedor.
-3. Salve a configuração.
-4. Ative **Usar IA externa** somente após conferir privacidade, condições e possíveis custos do serviço.
+3. Salve a configuração. Isso desativa a IA remota até você ativá-la novamente e revoga a autorização anterior de envio de memórias.
+4. Ative **Usar IA externa** após conferir a privacidade, os termos e os possíveis custos do serviço.
+5. Para enviar também memórias, habilite separadamente **Incluir memórias em pedidos remotos** e confirme a autorização na tela.
 
-Quando a IA externa é ativada, a mensagem atual e até 15 mensagens anteriores podem ser enviadas ao endpoint configurado. O provedor precisa implementar o formato `POST /chat/completions` compatível com OpenAI Chat Completions. Disponibilidade, limites e cobrança dependem do provedor escolhido. O app não faz fallback silencioso para outro serviço caso a solicitação falhe.
+Quando a IA externa está ativada, a mensagem atual e até 15 mensagens anteriores podem ser enviadas ao endpoint configurado. O endpoint precisa implementar `POST /chat/completions` compatível com OpenAI Chat Completions. Disponibilidade, limites e cobrança dependem do provedor. O app não faz fallback silencioso para outro serviço se a chamada falhar.
 
-A chave fica mascarada no campo e o valor em memória da interface é limpo após salvar. O campo vazio permite conservar a chave que já está armazenada. A configuração pode ser removida na própria tela. Nunca coloque chaves no código, no GitHub, em logs ou em capturas de tela.
+A chave fica mascarada na interface. Deixar o campo vazio conserva a chave já salva; salvar uma configuração desativa o provedor e revoga a autorização para enviar memórias. Não coloque chaves no código, no GitHub, nos logs ou em capturas de tela.
 
-## Memória pessoal
+## Memória pessoal e privacidade
 
-As memórias são escritas apenas quando o usuário as registra. Permanecem no banco local, cifradas com uma chave mantida pelo Android Keystore, sem sincronização automática. É possível remover um item ou apagar todos com confirmação.
+As memórias são registradas pelo usuário e ficam cifradas no banco local, sem sincronização automática. Para incluí-las em requisições remotas, é necessário ativar a IA externa e confirmar separadamente que os dados sairão do aparelho. Desativar a memória, ativar o modo local, desligar a IA externa, alterar a configuração do provedor ou remover o provedor revoga a autorização de envio de memórias. É possível apagar memórias individualmente ou todas com confirmação.
 
-As memórias **não são enviadas por padrão**. Para incluí-las nas requisições remotas, configure e ative um provedor e habilite separadamente **Incluir memórias em pedidos remotos**; o app pede confirmação de que esses dados sairão do aparelho. Você pode desligar essa opção a qualquer momento. Desativar a área de memória esconde os itens e impede seu uso no contexto remoto, mas não apaga o conteúdo salvo. Não há backend de sincronização conectado.
+O histórico de conversa também é cifrado em repouso com uma chave separada do Android Keystore. `allowBackup=false` impede que o banco cifrado seja restaurado sem as chaves do dispositivo por um backup comum. Ainda não há exportação/restauração segura do histórico e da memória.
 
 ## Limitações importantes
 
-- O runtime Rust original **ainda não está conectado** à interface Android; o cliente HTTP opcional é uma camada separada para inferência remota.
+- O runtime Rust original ainda **não está integrado** à interface Android; o cliente HTTP opcional é uma camada separada de inferência remota.
 - Não há modelo local nem pesos de modelo incluídos no APK.
-- A API de provedor pode ter custo; essa integração não promete uso gratuito.
-- O app ainda não executa ferramentas, automações ou comandos de sistema gerados pela IA.
-- As memórias não são usadas automaticamente pelo modelo.
-- Reconhecimento de fala depende do serviço disponível no Android; a preferência por offline não garante reconhecimento sem rede.
-- A interface nativa ainda precisa ser comparada com a referência exata do Figma do Copy.
-- Calendário, notificações, arquivos, câmera e outros aplicativos não estão integrados.
-- Um build de CI bem-sucedido não substitui teste no POCO X5 Pro e não equivale a uma versão pronta para distribuição.
+- Sem um provedor configurado e ativado, o app só faz comandos locais limitados — não é um LLM offline.
+- Um provedor remoto pode cobrar pelo uso; a compatibilidade de API não garante gratuidade.
+- As memórias só entram no contexto remoto quando o usuário autoriza. O mecanismo ainda não inclui um sistema de ferramentas/automações.
+- A interface Android ainda precisa ser comparada com a referência exata do Figma do Copy; não foi validada pixel a pixel.
+- Calendário, notificações, arquivos, câmera e outros apps não estão integrados.
+- O build verde do CI não substitui teste no POCO X5 Pro e não significa que o produto inteiro esteja pronto para distribuição.
 
 ## Compilar e testar
 

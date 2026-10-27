@@ -5,8 +5,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Small offline command layer for the app foundation.
- * General AI responses remain unavailable until the Rust bridge/provider layer is implemented.
+ * Deterministic local command layer used when remote AI is disabled or unavailable.
+ * It does not perform general language generation or access network services.
  */
 object AssistantEngine {
     private val locale = Locale("pt", "BR")
@@ -27,7 +27,7 @@ object AssistantEngine {
 
             normalized == "ajuda" || normalized == "comandos" ->
                 "Comandos locais disponíveis: perguntar a hora, perguntar a data e pedir ajuda. " +
-                    "Perguntas gerais funcionarão quando o núcleo de IA for conectado."
+                    "Perguntas gerais funcionarão quando o provedor remoto estiver ativo."
 
             else ->
                 "Recebi sua mensagem e ela foi salva somente neste dispositivo. " +
