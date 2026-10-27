@@ -16,6 +16,10 @@ Aplicativo Android nativo em Kotlin + Jetpack Compose. A interface é separada d
 - Estilos Conciso, Equilibrado e Detalhado são aplicados às respostas remotas; no modo local os comandos continuam predefinidos.
 - CI de Android passa no commit `8b36deee`: testes unitários e criação do APK de debug concluídos.
 
+## Integração com o runtime Rust
+
+A auditoria inicial está em `docs/REA_COPY_INTEGRATION_AUDIT.md`. O runtime Rust é composto por vários crates do agente/CLI e ainda não existe uma ponte Kotlin–Rust no app. Não trate a resposta local nem o cliente HTTP opcional como se fossem o runtime Rust. A integração será feita por etapas e só será considerada concluída depois de um fluxo Android → runtime → resposta validado.
+
 ## Configurar IA remota opcional
 
 1. Abra **Configurações**.
