@@ -789,6 +789,17 @@ private fun ModuleRow(number: String, title: String, description: String, status
 }
 
 @Composable
+private fun providerFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = CopyCyan,
+    unfocusedBorderColor = CopyLine,
+    focusedTextColor = CopyText,
+    unfocusedTextColor = CopyText,
+    cursorColor = CopyCyan,
+    focusedContainerColor = CopySurface,
+    unfocusedContainerColor = CopySurface
+)
+
+@Composable
 private fun SettingRow(title: String, description: String, enabled: Boolean, onChange: (Boolean) -> Unit) {
     Surface(color = CopySurface, shape = RoundedCornerShape(10.dp), border = BorderStroke(1.dp, CopyLine)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
