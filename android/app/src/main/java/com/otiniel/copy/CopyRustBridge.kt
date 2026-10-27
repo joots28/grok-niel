@@ -16,7 +16,7 @@ object CopyRustBridge {
         }
     }
 
-    fun isAvailable(): Boolean = libraryLoaded
+    fun isAvailable(): Boolean = classify("") == "empty"
 
     fun classify(input: String): String? {
         if (!libraryLoaded) return null
