@@ -1,0 +1,14 @@
+[package]
+name = "copy-mobile-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "copy_mobile_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+jni = "0.21.1"
+
+[workspace]

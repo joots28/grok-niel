@@ -58,3 +58,10 @@ gradle -p android testDebugUnitTest assembleDebug
 ```
 
 O APK de debug é gerado em `android/app/build/outputs/apk/debug/app-debug.apk`. Nenhuma chave de API é necessária para compilar ou usar os comandos locais.
+
+
+## Ponte Kotlin–Rust (primeira etapa)
+
+A fundação JNI fica em `android/rust-core/` e é um crate Rust isolado do workspace desktop. O workflow testa o crate e gera `libcopy_mobile_core.so` para `arm64-v8a` e `x86_64`, empacotando essas bibliotecas no APK de CI. A interface chama o classificador Rust para os comandos locais e mantém um fallback Kotlin caso a biblioteca nativa não esteja disponível.
+
+**Limite importante:** esta etapa confirma uma ponte nativa com classificação determinística. Ela ainda não incorpora o agente Grok desktop, não carrega modelo local e não oferece geração geral de texto sem um provedor de IA configurado.

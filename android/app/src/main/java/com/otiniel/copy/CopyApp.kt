@@ -55,6 +55,7 @@ private val CopyLine = Color(0xFF25364D)
 fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val rustCoreAvailable = remember { CopyRustBridge.isAvailable() }
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var page by rememberSaveable { mutableStateOf("Assistente") }
     var input by rememberSaveable { mutableStateOf("") }
@@ -374,6 +375,15 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                     else -> "Modo local · IA externa desativada"
                                 },
                                 color = CopyMuted,
+                                fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text("NÚCLEO NATIVO", color = CopyMuted, fontSize = 9.sp, letterSpacing = 1.5.sp)
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                if (rustCoreAvailable) "Rust conectado · classificação local ativa"
+                                else "Rust indisponível · fallback Kotlin ativo",
+                                color = if (rustCoreAvailable) CopyCyan else CopyMuted,
                                 fontSize = 12.sp
                             )
                             Spacer(Modifier.height(16.dp))
