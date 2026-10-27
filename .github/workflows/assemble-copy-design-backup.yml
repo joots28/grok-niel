@@ -6,8 +6,6 @@ on:
       - copy-foundation
     paths:
       - "docs/backups/READY"
-      - "docs/backups/.source_pdf/**"
-      - ".github/workflows/assemble-copy-design-backup.yml"
   workflow_dispatch:
 
 permissions:
@@ -15,13 +13,17 @@ permissions:
 
 jobs:
   assemble-backup:
-    if: github.event_name == 'workflow_dispatch' || hashFiles('docs/backups/READY') != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout backup source
         uses: actions/checkout@v4
         with:
           ref: copy-foundation
+
+      - name: Install PDF validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
 
       - name: Assemble base64 chunks in source order
         shell: bash
