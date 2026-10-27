@@ -61,6 +61,8 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
     var sending by remember { mutableStateOf(false) }
     var clearDialog by remember { mutableStateOf(false) }
     var clearMemoryDialog by remember { mutableStateOf(false) }
+    var confirmMemorySharing by remember { mutableStateOf(false) }
+    var shareMemoryWithProvider by rememberSaveable { mutableStateOf(false) }
     var offline by rememberSaveable { mutableStateOf(false) }
     var memoryEnabled by rememberSaveable { mutableStateOf(true) }
     var syncEnabled by rememberSaveable { mutableStateOf(false) }
@@ -144,7 +146,16 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             withContext(Dispatchers.IO) {
                                 val config = providerStore.load()
                                     ?: throw ProviderRequestException("O provedor não está configurado. Abra Configurações para salvá-lo.")
-                                ProviderChatClient.complete(config, previousMessages + user)
+                                val memoryContext = if (shareMemoryWithProvider && memoryEnabled) {
+                                    database.getMemories().map { it.content }.take(12)
+                                } else {
+                                    emptyList()
+                                }
+                                ProviderChatClient.complete(
+                                    config = config,
+                                    history = previousMessages + user,
+                                    memoryContext = memoryContext
+                                )
                             }
                         } catch (error: ProviderRequestException) {
                             "A IA externa não conseguiu responder: ${error.message} Nenhuma alternativa remota foi tentada; a mensagem permanece salva neste aparelho."
@@ -186,6 +197,34 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                 }) { Text("Apagar", color = CopyCyan) }
             },
             dismissButton = { TextButton(onClick = { clearDialog = false }) { Text("Cancelar") } },
+            containerColor = CopySurface,
+            titleContentColor = CopyText,
+            textContentColor = CopyMuted
+        )
+    }
+
+    if (confirmMemorySharing) {
+        AlertDialog(
+            onDismissRequest = { confirmMemorySharing = false },
+            title = { Text("Permitir envio de memórias?") },
+            text = {
+                Text(
+                    "As memórias pessoais salvas serão incluídas no contexto das mensagens enviadas ao provedor de IA que você configurou. Esses dados sairão do aparelho e estarão sujeitos às políticas de retenção e aos possíveis custos desse serviço. O envio só ocorre quando a IA externa estiver habilitada. Deseja permitir?"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmMemorySharing = false
+                    shareMemoryWithProvider = true
+                    providerNotice = "Memórias autorizadas para contexto remoto. Você pode desligar essa opção a qualquer momento."
+                }) { Text("Permitir", color = CopyCyan) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    confirmMemorySharing = false
+                    shareMemoryWithProvider = false
+                }) { Text("Manter no aparelho", color = CopyMuted) }
+            },
             containerColor = CopySurface,
             titleContentColor = CopyText,
             textContentColor = CopyMuted
@@ -422,7 +461,7 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             Text("O que o Copy guarda.", color = CopyText, fontSize = 28.sp, fontWeight = FontWeight.Light)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "Registre apenas informações que você escolher. Elas ficam no banco local deste aparelho, sem sincronização automática. Por enquanto, as memórias ainda não são anexadas automaticamente aos pedidos enviados à IA.",
+                                "Registre apenas informações que você escolher. Elas ficam cifradas no banco local deste aparelho, sem sincronização automática. Por padrão, não são enviadas à IA; o envio exige consentimento separado nas configurações.",
                                 color = CopyMuted,
                                 fontSize = 13.sp,
                                 lineHeight = 20.sp
@@ -691,9 +730,25 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
+                            SettingRow(
+                                "Incluir memórias em pedidos remotos",
+                                if (shareMemoryWithProvider) "Autorizado: memórias cifradas serão lidas localmente e incluídas no contexto remoto."
+                                else "Desativado por padrão. Ativar exige confirmar que os dados sairão do aparelho.",
+                                shareMemoryWithProvider
+                            ) { enabled ->
+                                if (!enabled) {
+                                    shareMemoryWithProvider = false
+                                    providerNotice = "As memórias não serão incluídas nos pedidos remotos."
+                                } else if (!providerConfigured || !providerEnabled) {
+                                    providerNotice = "Configure e ative um provedor de IA antes de autorizar o envio de memórias."
+                                } else {
+                                    confirmMemorySharing = true
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
                             SettingRow("Preferir operação local", "Ignora o provedor externo enquanto estiver ativado", offline) { offline = it }
                             Spacer(Modifier.height(8.dp))
-                            SettingRow("Memória habilitada", "Controla a prévia de memória desta sessão", memoryEnabled) { memoryEnabled = it }
+                            SettingRow("Memória habilitada", "Controla a visualização e o uso das memórias nesta sessão", memoryEnabled) { memoryEnabled = it }
                             Spacer(Modifier.height(8.dp))
                             SettingRow("Sincronização opcional", "Nenhum backend de sincronização conectado", syncEnabled) { syncEnabled = it }
                             Spacer(Modifier.height(18.dp))
