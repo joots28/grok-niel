@@ -1,0 +1,1 @@
+Assemble the verified COPY Figma Make source PDF from the ordered backup segments in .source_pdf. Temporary chunks are removed by the workflow after successful validation.
