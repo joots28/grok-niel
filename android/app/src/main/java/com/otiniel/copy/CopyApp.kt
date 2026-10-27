@@ -32,6 +32,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,12 +65,30 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
     var syncEnabled by rememberSaveable { mutableStateOf(false) }
     var responseStyle by rememberSaveable { mutableStateOf("Equilibrado") }
     var selectedModule by rememberSaveable { mutableStateOf("") }
+    val providerStore = remember(context) { ProviderConfigStore(context.applicationContext) }
+    var providerEndpoint by rememberSaveable { mutableStateOf("https://api.x.ai/v1") }
+    var providerModel by rememberSaveable { mutableStateOf("") }
+    var providerApiKey by remember { mutableStateOf("") }
+    var providerEnabled by rememberSaveable { mutableStateOf(false) }
+    var providerConfigured by remember { mutableStateOf(false) }
+    var providerNotice by rememberSaveable { mutableStateOf("") }
+    var providerSaving by remember { mutableStateOf(false) }
     val memories = remember { mutableStateListOf("Prefiro respostas objetivas e práticas.", "Quero priorizar funcionamento local e privacidade.") }
 
     LaunchedEffect(database) {
         val saved = withContext(Dispatchers.IO) { database.getMessages() }
         messages.clear()
         messages.addAll(saved)
+    }
+
+    LaunchedEffect(providerStore) {
+        val stored = withContext(Dispatchers.IO) { providerStore.loadSettings() }
+        if (stored != null) {
+            providerEndpoint = stored.baseUrl
+            providerModel = stored.model
+            providerConfigured = stored.configured
+        }
+        providerEnabled = providerStore.isEnabled()
     }
 
     val speechLauncher = rememberLauncherForActivityResult(
@@ -107,12 +127,33 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                 try {
                     val timestamp = System.currentTimeMillis()
                     val user = ChatMessage(role = "user", content = text, createdAt = timestamp)
-                    val answer = ChatMessage(role = "assistant", content = AssistantEngine.reply(text), createdAt = timestamp + 1L)
-                    val stored = withContext(Dispatchers.IO) {
-                        database.insertMessage(user) to database.insertMessage(answer)
+                    val previousMessages = messages.toList().takeLast(15)
+                    val storedUser = withContext(Dispatchers.IO) { database.insertMessage(user) }
+                    messages.add(storedUser)
+
+                    val answerText = if (!offline && providerEnabled) {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                val config = providerStore.load()
+                                    ?: throw ProviderRequestException("O provedor não está configurado. Abra Configurações para salvá-lo.")
+                                ProviderChatClient.complete(config, previousMessages + user)
+                            }
+                        } catch (error: ProviderRequestException) {
+                            "A IA externa não conseguiu responder: ${error.message} Nenhuma alternativa remota foi tentada; a mensagem permanece salva neste aparelho."
+                        } catch (_: Exception) {
+                            "A IA externa não conseguiu concluir a solicitação. Confira a configuração e a conexão antes de tentar novamente."
+                        }
+                    } else {
+                        AssistantEngine.reply(text)
                     }
-                    messages.add(stored.first)
-                    messages.add(stored.second)
+
+                    val answer = ChatMessage(
+                        role = "assistant",
+                        content = answerText,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    val storedAnswer = withContext(Dispatchers.IO) { database.insertMessage(answer) }
+                    messages.add(storedAnswer)
                 } catch (_: Exception) {
                     Toast.makeText(context, "Não foi possível salvar a mensagem local.", Toast.LENGTH_SHORT).show()
                 } finally {
@@ -190,6 +231,8 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                 CopyHeader(
                     page = page,
                     offline = offline,
+                    providerEnabled = providerEnabled,
+                    providerConfigured = providerConfigured,
                     onSettings = { page = "Configurações"; selectedModule = "" }
                 )
 
@@ -207,7 +250,11 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             Text("do papel.", color = CopyBlue, fontSize = 34.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                if (offline) "Modo offline. Comandos locais, no seu controle." else "Você conduz. As possibilidades acompanham.",
+                                when {
+                                    offline -> "Modo offline. Comandos locais, no seu controle."
+                                    providerEnabled && providerConfigured -> "Mensagens enviadas ao provedor que você habilitou."
+                                    else -> "Você conduz. As possibilidades acompanham."
+                                },
                                 color = CopyMuted, fontSize = 13.sp
                             )
                             Spacer(Modifier.height(12.dp))
@@ -246,7 +293,15 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             Spacer(Modifier.height(16.dp))
                             Text("ESTADO DO SISTEMA", color = CopyMuted, fontSize = 9.sp, letterSpacing = 1.5.sp)
                             Spacer(Modifier.height(7.dp))
-                            Text(if (offline) "Modo local selecionado" else "Demonstração local · IA não conectada", color = CopyMuted, fontSize = 12.sp)
+                            Text(
+                                when {
+                                    offline -> "Modo local selecionado"
+                                    providerEnabled && providerConfigured -> "IA externa habilitada · envio remoto autorizado"
+                                    else -> "Modo local · IA externa desativada"
+                                },
+                                color = CopyMuted,
+                                fontSize = 12.sp
+                            )
                             Spacer(Modifier.height(16.dp))
                         }
                         CommandDock(
@@ -395,9 +450,134 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             Spacer(Modifier.height(10.dp))
                             Text("Seu sistema. Suas regras.", color = CopyText, fontSize = 28.sp, fontWeight = FontWeight.Light)
                             Spacer(Modifier.height(8.dp))
-                            Text("As opções abaixo controlam apenas a experiência desta demonstração.", color = CopyMuted, fontSize = 13.sp)
-                            Spacer(Modifier.height(16.dp))
-                            SettingRow("Preferir operação local", "Preferência visual; roteador ainda não conectado", offline) { offline = it }
+                            Text(
+                                "A IA externa é opcional. Sem configuração e ativação explícitas, o Copy permanece no modo local.",
+                                color = CopyMuted,
+                                fontSize = 13.sp,
+                                lineHeight = 20.sp
+                            )
+                            Spacer(Modifier.height(18.dp))
+                            Text("PROVEDOR DE IA COMPATÍVEL", color = CopyCyan, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = providerEndpoint,
+                                onValueChange = { providerEndpoint = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("URL base HTTPS") },
+                                placeholder = { Text("https://api.x.ai/v1") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                                colors = providerFieldColors()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = providerModel,
+                                onValueChange = { providerModel = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Identificador do modelo") },
+                                placeholder = { Text("Informe o nome do modelo do provedor") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                colors = providerFieldColors()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = providerApiKey,
+                                onValueChange = { providerApiKey = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Chave de API") },
+                                placeholder = { Text("Deixe vazio para manter a chave salva") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                                colors = providerFieldColors()
+                            )
+                            Text(
+                                "A chave fica criptografada pelo Android Keystore. Ao ativar a IA externa, a mensagem e até 15 mensagens anteriores podem ser enviadas ao endpoint configurado. O provedor pode cobrar pelo uso.",
+                                color = CopyMuted,
+                                fontSize = 10.sp,
+                                lineHeight = 15.sp,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            providerSaving = true
+                                            providerNotice = ""
+                                            try {
+                                                withContext(Dispatchers.IO) {
+                                                    providerStore.save(providerEndpoint, providerModel, providerApiKey)
+                                                }
+                                                val stored = withContext(Dispatchers.IO) { providerStore.loadSettings() }
+                                                if (stored != null) {
+                                                    providerEndpoint = stored.baseUrl
+                                                    providerModel = stored.model
+                                                    providerConfigured = stored.configured
+                                                }
+                                                providerApiKey = ""
+                                                providerNotice = "Configuração salva com chave criptografada. A IA externa continua desativada até você habilitá-la."
+                                                Toast.makeText(context, "Configuração do provedor salva.", Toast.LENGTH_SHORT).show()
+                                            } catch (error: Exception) {
+                                                providerNotice = error.message ?: "Não foi possível salvar a configuração."
+                                            } finally {
+                                                providerSaving = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !providerSaving,
+                                    colors = ButtonDefaults.buttonColors(containerColor = CopyBlue, contentColor = Color.White)
+                                ) {
+                                    Text(if (providerSaving) "Salvando..." else "Salvar provedor")
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) { providerStore.clear() }
+                                            providerEndpoint = "https://api.x.ai/v1"
+                                            providerModel = ""
+                                            providerApiKey = ""
+                                            providerEnabled = false
+                                            providerConfigured = false
+                                            providerNotice = "Provedor e chave salvos removidos deste aplicativo."
+                                        }
+                                    },
+                                    border = BorderStroke(1.dp, CopyLine)
+                                ) {
+                                    Text("Remover", color = CopyMuted)
+                                }
+                            }
+                            if (providerNotice.isNotBlank()) {
+                                Text(
+                                    providerNotice,
+                                    color = if (providerNotice.startsWith("Configuração salva")) CopyCyan else CopyMuted,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            SettingRow(
+                                "Usar IA externa",
+                                if (providerConfigured) "Envia mensagens ao provedor salvo; desative para voltar ao modo local."
+                                else "Salve um provedor e uma chave antes de ativar.",
+                                providerEnabled
+                            ) { enabled ->
+                                try {
+                                    providerStore.setEnabled(enabled)
+                                    providerEnabled = enabled
+                                    providerNotice = if (enabled) {
+                                        "IA externa habilitada. Confira as condições de uso e custos do provedor."
+                                    } else {
+                                        "IA externa desativada. As próximas mensagens usarão apenas comandos locais."
+                                    }
+                                } catch (error: Exception) {
+                                    providerEnabled = false
+                                    providerNotice = error.message ?: "Não foi possível alterar a configuração."
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            SettingRow("Preferir operação local", "Ignora o provedor externo enquanto estiver ativado", offline) { offline = it }
                             Spacer(Modifier.height(8.dp))
                             SettingRow("Memória habilitada", "Controla a prévia de memória desta sessão", memoryEnabled) { memoryEnabled = it }
                             Spacer(Modifier.height(8.dp))
@@ -429,7 +609,13 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
 }
 
 @Composable
-private fun CopyHeader(page: String, offline: Boolean, onSettings: () -> Unit) {
+private fun CopyHeader(
+    page: String,
+    offline: Boolean,
+    providerEnabled: Boolean,
+    providerConfigured: Boolean,
+    onSettings: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth().background(CopyBackground).padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -441,9 +627,22 @@ private fun CopyHeader(page: String, offline: Boolean, onSettings: () -> Unit) {
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Box(Modifier.size(5.dp).background(if (offline) CopyMuted else CopyCyan, CircleShape))
-                Text(if (offline) "Modo offline" else "Local · demonstração", color = CopyMuted, fontSize = 9.sp)
+                Text(
+                    when {
+                        offline -> "Modo offline"
+                        providerEnabled && providerConfigured -> "IA externa habilitada"
+                        else -> "Local · sem IA conectada"
+                    },
+                    color = CopyMuted,
+                    fontSize = 9.sp
+                )
             }
-            Text(if (page == "Configurações") "PREFERÊNCIAS" else "PROTÓTIPO", color = CopyMuted, fontSize = 8.sp, letterSpacing = 1.sp)
+            Text(
+                if (page == "Configurações") "PREFERÊNCIAS" else if (providerEnabled && providerConfigured && !offline) "PROVEDOR OPCIONAL" else "MODO LOCAL",
+                color = CopyMuted,
+                fontSize = 8.sp,
+                letterSpacing = 1.sp
+            )
         }
         Spacer(Modifier.width(8.dp))
         Text("⚙", color = CopyMuted, fontSize = 21.sp, modifier = Modifier.clickable(onClick = onSettings).padding(5.dp))
