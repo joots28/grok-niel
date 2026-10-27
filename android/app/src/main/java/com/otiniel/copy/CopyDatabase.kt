@@ -37,6 +37,7 @@ class CopyDatabase(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createMemoriesTable(db)
+        if (oldVersion == 2) migrateMemoriesToEncryptedStorage(db)
     }
 
     private fun createMemoriesTable(db: SQLiteDatabase) {
@@ -44,11 +45,45 @@ class CopyDatabase(context: Context) :
             """
             CREATE TABLE IF NOT EXISTS personal_memories (
                 _id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL CHECK(length(trim(content)) BETWEEN 1 AND 500),
+                content TEXT NOT NULL CHECK(length(content) BETWEEN 1 AND 2048),
                 created_at INTEGER NOT NULL
             )
             """.trimIndent()
         )
+    }
+
+    /** Version 2 stored plaintext and had a 500-character column constraint. */
+    private fun migrateMemoriesToEncryptedStorage(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE personal_memories RENAME TO personal_memories_v2")
+        createMemoriesTable(db)
+
+        val oldMemories = mutableListOf<PersonalMemory>()
+        db.query(
+            "personal_memories_v2",
+            arrayOf(COLUMN_ID, COLUMN_CONTENT, COLUMN_CREATED_AT),
+            null, null, null, null, "$COLUMN_ID ASC"
+        ).use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(COLUMN_ID)
+            val contentIndex = cursor.getColumnIndexOrThrow(COLUMN_CONTENT)
+            val timeIndex = cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)
+            while (cursor.moveToNext()) {
+                oldMemories += PersonalMemory(
+                    id = cursor.getLong(idIndex),
+                    content = cursor.getString(contentIndex),
+                    createdAt = cursor.getLong(timeIndex)
+                )
+            }
+        }
+
+        oldMemories.forEach { memory ->
+            val values = ContentValues().apply {
+                put(COLUMN_ID, memory.id)
+                put(COLUMN_CONTENT, LocalMemoryCrypto.encrypt(memory.content))
+                put(COLUMN_CREATED_AT, memory.createdAt)
+            }
+            db.insertOrThrow(TABLE_MEMORIES, null, values)
+        }
+        db.execSQL("DROP TABLE personal_memories_v2")
     }
 
     fun getMessages(): List<ChatMessage> {
@@ -101,7 +136,7 @@ class CopyDatabase(context: Context) :
             while (cursor.moveToNext()) {
                 result += PersonalMemory(
                     id = cursor.getLong(idIndex),
-                    content = cursor.getString(contentIndex),
+                    content = LocalMemoryCrypto.decrypt(cursor.getString(contentIndex)),
                     createdAt = cursor.getLong(timeIndex)
                 )
             }
@@ -113,8 +148,12 @@ class CopyDatabase(context: Context) :
         val normalized = content.trim()
         require(normalized.isNotEmpty()) { "A memória não pode ficar vazia." }
         require(normalized.length <= MAX_MEMORY_LENGTH) { "A memória deve ter até $MAX_MEMORY_LENGTH caracteres." }
+        val encryptedContent = LocalMemoryCrypto.encrypt(normalized)
+        require(encryptedContent.length <= MAX_ENCRYPTED_MEMORY_LENGTH) {
+            "A memória cifrada excedeu o limite interno permitido."
+        }
         val values = ContentValues().apply {
-            put(COLUMN_CONTENT, normalized)
+            put(COLUMN_CONTENT, encryptedContent)
             put(COLUMN_CREATED_AT, createdAt)
         }
         val id = writableDatabase.insertOrThrow(TABLE_MEMORIES, null, values)
@@ -127,7 +166,7 @@ class CopyDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "copy_local.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         private const val TABLE_MESSAGES = "messages"
         private const val TABLE_MEMORIES = "personal_memories"
         private const val COLUMN_ID = "_id"
@@ -135,5 +174,6 @@ class CopyDatabase(context: Context) :
         private const val COLUMN_CONTENT = "content"
         private const val COLUMN_CREATED_AT = "created_at"
         private const val MAX_MEMORY_LENGTH = 500
+        private const val MAX_ENCRYPTED_MEMORY_LENGTH = 2048
     }
 }
