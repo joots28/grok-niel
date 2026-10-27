@@ -31,7 +31,7 @@ A chave fica mascarada no campo e o valor em memória da interface é limpo apó
 
 As memórias são escritas apenas quando o usuário as registra. Permanecem no banco local, cifradas com uma chave mantida pelo Android Keystore, sem sincronização automática. É possível remover um item ou apagar todos com confirmação.
 
-Por enquanto, as memórias **não são anexadas automaticamente ao contexto da IA**. Desativar a área de memória esconde os itens, mas não apaga o conteúdo salvo. Não há backend de sincronização conectado.
+As memórias **não são enviadas por padrão**. Para incluí-las nas requisições remotas, configure e ative um provedor e habilite separadamente **Incluir memórias em pedidos remotos**; o app pede confirmação de que esses dados sairão do aparelho. Você pode desligar essa opção a qualquer momento. Desativar a área de memória esconde os itens e impede seu uso no contexto remoto, mas não apaga o conteúdo salvo. Não há backend de sincronização conectado.
 
 ## Limitações importantes
 
