@@ -164,6 +164,10 @@ class CopyDatabase(context: Context) :
         writableDatabase.delete(TABLE_MEMORIES, "$COLUMN_ID = ?", arrayOf(id.toString()))
     }
 
+    fun clearMemories() {
+        writableDatabase.delete(TABLE_MEMORIES, null, null)
+    }
+
     companion object {
         private const val DATABASE_NAME = "copy_local.db"
         private const val DATABASE_VERSION = 3
