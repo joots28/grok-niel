@@ -154,7 +154,8 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                 ProviderChatClient.complete(
                                     config = config,
                                     history = previousMessages + user,
-                                    memoryContext = memoryContext
+                                    memoryContext = memoryContext,
+                                    responseStyle = responseStyle
                                 )
                             }
                         } catch (error: ProviderRequestException) {
@@ -752,7 +753,13 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
-                            SettingRow("Preferir operação local", "Ignora o provedor externo enquanto estiver ativado", offline) { offline = it }
+                            SettingRow("Preferir operação local", "Ignora o provedor externo enquanto estiver ativado", offline) { enabled ->
+                                offline = enabled
+                                if (enabled) {
+                                    shareMemoryWithProvider = false
+                                    providerNotice = "Modo local ativado; autorização de envio de memórias revogada."
+                                }
+                            }
                             Spacer(Modifier.height(8.dp))
                             SettingRow("Memória habilitada", "Controla a visualização e o uso das memórias nesta sessão", memoryEnabled) {
                                 memoryEnabled = it
@@ -765,6 +772,8 @@ fun CopyApp(database: CopyDatabase, onSpeak: (String) -> Unit) {
                             SettingRow("Sincronização opcional", "Nenhum backend de sincronização conectado", syncEnabled) { syncEnabled = it }
                             Spacer(Modifier.height(18.dp))
                             Text("ESTILO DE RESPOSTA", color = CopyMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
+                            Spacer(Modifier.height(5.dp))
+                            Text("Usado nas respostas do provedor remoto. Os comandos locais mantêm respostas predefinidas.", color = CopyMuted, fontSize = 11.sp, lineHeight = 16.sp)
                             Spacer(Modifier.height(8.dp))
                             listOf("Conciso", "Equilibrado", "Detalhado").forEach { option ->
                                 Row(
