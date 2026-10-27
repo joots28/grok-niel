@@ -25,7 +25,8 @@ object ProviderChatClient {
     fun complete(
         config: ModelProviderConfig,
         history: List<ChatMessage>,
-        memoryContext: List<String> = emptyList()
+        memoryContext: List<String> = emptyList(),
+        responseStyle: String = "Equilibrado"
     ): String {
         val endpoint = try {
             URL(ProviderConfigValidator.completionUrl(config.baseUrl).value)
@@ -50,7 +51,7 @@ object ProviderChatClient {
                 put(
                     JSONObject()
                         .put("role", "system")
-                        .put("content", buildSystemPrompt(memoryContext))
+                        .put("content", buildSystemPrompt(memoryContext, responseStyle))
                 )
                 turns.forEach { turn ->
                     if (turn.role == "user" || turn.role == "assistant") {
@@ -133,10 +134,19 @@ object ProviderChatClient {
         }
     }
 
-    internal fun buildSystemPrompt(memoryContext: List<String>): String {
+    internal fun buildSystemPrompt(
+        memoryContext: List<String>,
+        responseStyle: String = "Equilibrado"
+    ): String {
+        val styleInstruction = when (responseStyle) {
+            "Conciso" -> "Priorize respostas curtas, diretas e focadas no essencial."
+            "Detalhado" -> "Explique o raciocínio útil, apresente etapas e ressalvas relevantes sem inventar fatos."
+            else -> "Equilibre clareza, contexto e objetividade; use etapas quando forem úteis."
+        }
         val base =
             "Você é COPY, um assistente pessoal útil, honesto e cuidadoso. " +
                 "Responda em português brasileiro por padrão. " +
+                "Estilo de resposta: $styleInstruction " +
                 "Não afirme ter executado ações no dispositivo, acessado arquivos ou conectado serviços " +
                 "quando nenhuma ferramenta correspondente estiver disponível."
 
