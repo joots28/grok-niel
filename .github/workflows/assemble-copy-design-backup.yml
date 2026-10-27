@@ -1,4 +1,4 @@
-name: Assemble COPY Figma Make source backup
+name: Assemble COPY Figma Make design backup
 
 on:
   push:
@@ -6,39 +6,51 @@ on:
       - copy-foundation
     paths:
       - "docs/backups/READY"
+      - "docs/backups/.source_pdf/**"
+      - ".github/workflows/assemble-copy-design-backup.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  assemble-source-pdf:
-    if: github.ref_name == 'copy-foundation'
+  assemble-backup:
+    if: github.event_name == 'workflow_dispatch' || hashFiles('docs/backups/READY') != ''
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout backup branch
+      - name: Checkout backup source
         uses: actions/checkout@v4
         with:
           ref: copy-foundation
-          fetch-depth: 0
 
-      - name: Assemble and validate PDF
+      - name: Assemble base64 chunks in source order
         shell: bash
         run: |
-          if [ ! -f docs/backups/READY ]; then
-            echo "No backup assembly request; nothing to do."
-            exit 0
-          fi
-          cat docs/backups/.source_pdf/part-*.b64 | tr -d '\n\r' | base64 --decode > docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
+          set -euo pipefail
+          src=docs/backups/.source_pdf
+          b64="$RUNNER_TEMP/copy-design.b64"
+          : > "$b64"
+          for n in $(seq -f "%03g" 1 6); do cat "$src/part-$n.b64" >> "$b64"; done
+          for n in 1 2 3 4; do cat "$src/fix/007-$n.b64" >> "$b64"; done
+          for n in $(seq -f "%03g" 8 22); do cat "$src/part-$n.b64" >> "$b64"; done
+          cat "$src/part-023.b64" "$src/fix/023-tail.b64" >> "$b64"
+          for n in 1 2 3 4; do cat "$src/fix/024-$n.b64" >> "$b64"; done
+          for n in 1 2 3 4; do cat "$src/fix/025-$n.b64" >> "$b64"; done
+          cat "$src/part-026.b64" "$src/part-027.b64" >> "$b64"
+          tr -d '\r\n' < "$b64" > "$RUNNER_TEMP/copy-design-clean.b64"
+          base64 --decode "$RUNNER_TEMP/copy-design-clean.b64" > docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
           test "$(head -c 5 docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf)" = "%PDF-"
-          file docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
-          pdfinfo docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf | head -n 12
+          pdfinfo docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf | tee "$RUNNER_TEMP/pdfinfo.txt"
+          grep -q '^Pages: *30' "$RUNNER_TEMP/pdfinfo.txt"
+          sha256sum docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
 
-      - name: Commit the real PDF and remove temporary parts
+      - name: Commit verified PDF and remove temporary chunks
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/backups/COPY_FIGMA_MAKE_SOURCE_BACKUP.pdf
           git rm -r docs/backups/.source_pdf docs/backups/READY
-          git commit -m "Add Figma Make source backup PDF"
+          git commit -m "Add Figma Make source design PDF backup"
           git push origin HEAD:copy-foundation
