@@ -43,7 +43,8 @@ class CopyDatabase(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createMemoriesTable(db)
-        if (oldVersion == 2) migrateMemoriesToEncryptedStorage(db)
+        if (oldVersion == 2) migrateMemoriesToEncryptedStorage(db, existingContentIsEncrypted = false)
+        if (oldVersion == 3) migrateMemoriesToEncryptedStorage(db, existingContentIsEncrypted = true)
     }
 
     private fun createMemoriesTable(db: SQLiteDatabase) {
@@ -51,15 +52,15 @@ class CopyDatabase(context: Context) :
             """
             CREATE TABLE IF NOT EXISTS personal_memories (
                 _id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL CHECK(length(content) BETWEEN 1 AND 2048),
+                content TEXT NOT NULL CHECK(length(content) BETWEEN 1 AND 3072),
                 created_at INTEGER NOT NULL
             )
             """.trimIndent()
         )
     }
 
-    /** Version 2 stored plaintext and had a 500-character column constraint. */
-    private fun migrateMemoriesToEncryptedStorage(db: SQLiteDatabase) {
+    /** Rebuilds the table while preserving IDs and timestamps; version 2 stored plaintext. */
+    private fun migrateMemoriesToEncryptedStorage(db: SQLiteDatabase, existingContentIsEncrypted: Boolean) {
         db.execSQL("ALTER TABLE personal_memories RENAME TO personal_memories_v2")
         createMemoriesTable(db)
 
@@ -84,7 +85,10 @@ class CopyDatabase(context: Context) :
         oldMemories.forEach { memory ->
             val values = ContentValues().apply {
                 put(COLUMN_ID, memory.id)
-                put(COLUMN_CONTENT, LocalMemoryCrypto.encrypt(memory.content))
+                put(
+                    COLUMN_CONTENT,
+                    if (existingContentIsEncrypted) memory.content else LocalMemoryCrypto.encrypt(memory.content)
+                )
                 put(COLUMN_CREATED_AT, memory.createdAt)
             }
             db.insertOrThrow(TABLE_MEMORIES, null, values)
@@ -176,7 +180,7 @@ class CopyDatabase(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "copy_local.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 4
         private const val TABLE_MESSAGES = "messages"
         private const val TABLE_MEMORIES = "personal_memories"
         private const val COLUMN_ID = "_id"
@@ -184,6 +188,6 @@ class CopyDatabase(context: Context) :
         private const val COLUMN_CONTENT = "content"
         private const val COLUMN_CREATED_AT = "created_at"
         private const val MAX_MEMORY_LENGTH = 500
-        private const val MAX_ENCRYPTED_MEMORY_LENGTH = 2048
+        private const val MAX_ENCRYPTED_MEMORY_LENGTH = 3072
     }
 }
